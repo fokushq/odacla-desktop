@@ -10,7 +10,7 @@ use fokus_platform::{
 
 use x11rb::connection::Connection;
 use x11rb::protocol::screensaver;
-use x11rb::protocol::xproto::{self, Atom, AtomEnum, ConnectionExt, Window};
+use x11rb::protocol::xproto::{Atom, AtomEnum, ConnectionExt, Window};
 use x11rb::rust_connection::RustConnection;
 
 /// The Linux implementation of ActivityDetector, backed by X11/XCB.
@@ -34,20 +34,25 @@ impl LinuxActivityDetector {
         let root = conn.setup().roots[screen_num].root;
 
         // Intern all the atoms we need up-front.
-        let cookies = (
-            conn.intern_atom(false, b"_NET_ACTIVE_WINDOW").unwrap(),
-            conn.intern_atom(false, b"_NET_WM_NAME").unwrap(),
-            conn.intern_atom(false, b"_NET_WM_PID").unwrap(),
-            conn.intern_atom(false, b"_NET_CLIENT_LIST").unwrap(),
-            conn.intern_atom(false, b"UTF8_STRING").unwrap(),
-        );
+        // Must resolve all cookies before moving conn into Self.
+        let c1 = conn.intern_atom(false, b"_NET_ACTIVE_WINDOW").unwrap();
+        let c2 = conn.intern_atom(false, b"_NET_WM_NAME").unwrap();
+        let c3 = conn.intern_atom(false, b"_NET_WM_PID").unwrap();
+        let c4 = conn.intern_atom(false, b"_NET_CLIENT_LIST").unwrap();
+        let c5 = conn.intern_atom(false, b"UTF8_STRING").unwrap();
+
+        let atom_net_active_window = c1.reply().unwrap().atom;
+        let atom_net_wm_name = c2.reply().unwrap().atom;
+        let atom_net_wm_pid = c3.reply().unwrap().atom;
+        let atom_net_client_list = c4.reply().unwrap().atom;
+        let atom_utf8_string = c5.reply().unwrap().atom;
 
         Self {
-            atom_net_active_window: cookies.0.reply().unwrap().atom,
-            atom_net_wm_name: cookies.1.reply().unwrap().atom,
-            atom_net_wm_pid: cookies.2.reply().unwrap().atom,
-            atom_net_client_list: cookies.3.reply().unwrap().atom,
-            atom_utf8_string: cookies.4.reply().unwrap().atom,
+            atom_net_active_window,
+            atom_net_wm_name,
+            atom_net_wm_pid,
+            atom_net_client_list,
+            atom_utf8_string,
             atom_wm_name: AtomEnum::WM_NAME.into(),
             conn,
             root,
