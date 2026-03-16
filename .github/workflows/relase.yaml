@@ -1,0 +1,55 @@
+name: "Release"
+on:
+  push:
+    branches:
+      - ci-cd-setup
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+      
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies (Sadece Ubuntu için)
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        working-directory: ./apps/desktop
+        run: npm install
+
+      - name: Build and Release Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: ./apps/desktop
+          tagName: app-v__VERSION__
+          releaseName: 'Fokus v__VERSION__'
+          releaseBody: 'Fokus masaüstü uygulamasının yeni sürümü yayında! Aşağıdaki dosyalardan işletim sisteminize uygun olanı indirip kurabilirsiniz.'
+          releaseDraft: false
+          prerelease: false
