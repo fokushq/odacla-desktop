@@ -1,0 +1,8 @@
+[package]
+name = "fokus-classifier"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+fokus-domain = { path = "../domain" }
+tracing = { workspace = true }

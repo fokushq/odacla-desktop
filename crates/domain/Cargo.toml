@@ -1,0 +1,9 @@
+[package]
+name = "fokus-domain"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }

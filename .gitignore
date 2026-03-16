@@ -1,0 +1,61 @@
+# =============================================================================
+# Fokus .gitignore
+# =============================================================================
+
+# ── Rust / Cargo ─────────────────────────────────────────────────────────────
+/target/
+**/target/
+**/*.rs.bk
+*.pdb
+
+# ── Node / npm ───────────────────────────────────────────────────────────────
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# ── Svelte ───────────────────────────────────────────────────────────────────
+.svelte-kit/
+
+# ── Tauri ────────────────────────────────────────────────────────────────────
+# Generated platform code (Android/iOS scaffolding, schemas)
+# Keep icons — they're hand-crafted assets
+apps/desktop/src-tauri/gen/schemas/
+apps/desktop/src-tauri/gen/android/
+apps/desktop/src-tauri/gen/ios/
+
+# ── Database (user data — never commit) ──────────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+
+# ── Environment & secrets ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── IDE / Editor ─────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── Test / Coverage ──────────────────────────────────────────────────────────
+coverage/
+*.lcov
+tarpaulin-report.html

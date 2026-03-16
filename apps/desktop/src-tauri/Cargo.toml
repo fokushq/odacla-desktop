@@ -1,0 +1,25 @@
+[package]
+name = "fokus-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+fokus-domain = { path = "../../../crates/domain" }
+fokus-collector = { path = "../../../crates/collector" }
+fokus-classifier = { path = "../../../crates/classifier" }
+fokus-storage = { path = "../../../crates/storage" }
+fokus-platform-windows = { path = "../../../crates/platform-windows" }
+
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
