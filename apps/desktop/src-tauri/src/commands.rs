@@ -5,8 +5,14 @@ use tauri::State;
 use uuid::Uuid;
 
 use fokus_domain::{Category, Rule, Session, Settings, rule::MatchTarget};
-use fokus_platform_windows::WindowsActivityDetector;
+use fokus_platform::ActivityDetector;
 use fokus_storage::queries::rollups::DailyRollup;
+
+#[cfg(target_os = "windows")]
+use fokus_platform_windows::WindowsActivityDetector as PlatformDetector;
+
+#[cfg(target_os = "linux")]
+use fokus_platform_linux::LinuxActivityDetector as PlatformDetector;
 
 use crate::state::AppState;
 
@@ -180,12 +186,12 @@ pub fn save_settings(settings: Settings, state: State<AppState>) -> Result<(), S
 }
 
 /// Get all currently visible application windows from the OS.
-/// Uses EnumWindows to enumerate live top-level windows — not limited to
-/// the last-focused app. Returns deduplicated, sorted, Fokus-filtered names.
+/// Enumerates live top-level windows — not limited to the last-focused app.
+/// Returns deduplicated, sorted, Fokus-filtered names.
 /// Powers the "Currently running" picker in Settings.
 #[tauri::command]
 pub fn get_running_apps() -> Result<Vec<String>, String> {
-    let detector = WindowsActivityDetector::new();
+    let detector = PlatformDetector::new();
     let windows = detector.get_visible_windows();
 
     let mut seen = std::collections::HashSet::new();

@@ -12,7 +12,7 @@ fokus-domain = { path = "../../../crates/domain" }
 fokus-collector = { path = "../../../crates/collector" }
 fokus-classifier = { path = "../../../crates/classifier" }
 fokus-storage = { path = "../../../crates/storage" }
-fokus-platform-windows = { path = "../../../crates/platform-windows" }
+fokus-platform = { path = "../../../crates/platform" }
 
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-shell = "2"
@@ -23,3 +23,9 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+fokus-platform-windows = { path = "../../../crates/platform-windows" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+fokus-platform-linux = { path = "../../../crates/platform-linux" }

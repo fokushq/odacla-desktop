@@ -9,12 +9,18 @@ use tracing::{debug, error, info, trace, warn};
 
 use fokus_classifier::Classifier;
 use fokus_domain::{Activity, ActivityKind, Category, Session, Settings, TrackingMode};
-use fokus_platform_windows::{ActivityDetector, WindowsActivityDetector};
+use fokus_platform::ActivityDetector;
 use fokus_storage::Database;
+
+#[cfg(target_os = "windows")]
+use fokus_platform_windows::WindowsActivityDetector as PlatformDetector;
+
+#[cfg(target_os = "linux")]
+use fokus_platform_linux::LinuxActivityDetector as PlatformDetector;
 
 /// The background collector service.
 pub struct Collector {
-    detector: WindowsActivityDetector,
+    detector: PlatformDetector,
     classifier: Arc<Mutex<Classifier>>,
     db: Arc<Mutex<Database>>,
     current_session: Option<Session>,
@@ -35,7 +41,7 @@ impl Collector {
         settings: Arc<Mutex<Settings>>,
     ) -> Self {
         Self {
-            detector: WindowsActivityDetector::new(),
+            detector: PlatformDetector::new(),
             classifier,
             db,
             current_session: None,

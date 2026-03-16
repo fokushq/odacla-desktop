@@ -821,6 +821,8 @@ dependencies = [
  "chrono",
  "fokus-classifier",
  "fokus-domain",
+ "fokus-platform",
+ "fokus-platform-linux",
  "fokus-platform-windows",
  "fokus-storage",
  "thiserror 1.0.69",
@@ -836,6 +838,8 @@ dependencies = [
  "fokus-classifier",
  "fokus-collector",
  "fokus-domain",
+ "fokus-platform",
+ "fokus-platform-linux",
  "fokus-platform-windows",
  "fokus-storage",
  "serde",
@@ -859,11 +863,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "fokus-platform"
+version = "0.1.0"
+dependencies = [
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "fokus-platform-linux"
+version = "0.1.0"
+dependencies = [
+ "fokus-platform",
+ "tracing",
+ "x11rb",
+]
+
+[[package]]
 name = "fokus-platform-windows"
 version = "0.1.0"
 dependencies = [
- "fokus-domain",
- "thiserror 1.0.69",
+ "fokus-platform",
  "tracing",
  "windows 0.58.0",
 ]
@@ -1134,6 +1153,16 @@ checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
  "typenum",
  "version_check",
+]
+
+[[package]]
+name = "gethostname"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bd49230192a3797a9a4d6abe9b3eed6f7fa4c8a8a4947977c6f80025f92cbd8"
+dependencies = [
+ "rustix",
+ "windows-link 0.2.1",
 ]
 
 [[package]]
@@ -1885,6 +1914,12 @@ dependencies = [
  "pkg-config",
  "vcpkg",
 ]
+
+[[package]]
+name = "linux-raw-sys"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "litemap"
@@ -2918,6 +2953,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
 dependencies = [
  "semver",
+]
+
+[[package]]
+name = "rustix"
+version = "1.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
+dependencies = [
+ "bitflags 2.11.0",
+ "errno",
+ "libc",
+ "linux-raw-sys",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5273,6 +5321,23 @@ dependencies = [
  "once_cell",
  "pkg-config",
 ]
+
+[[package]]
+name = "x11rb"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9993aa5be5a26815fe2c3eacfc1fde061fc1a1f094bf1ad2a18bf9c495dd7414"
+dependencies = [
+ "gethostname",
+ "rustix",
+ "x11rb-protocol",
+]
+
+[[package]]
+name = "x11rb-protocol"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea6fc2961e4ef194dcbfe56bb845534d0dc8098940c7e5c012a258bfec6701bd"
 
 [[package]]
 name = "yoke"

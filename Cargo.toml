@@ -7,7 +7,9 @@ members = [
     "crates/classifier",
     "crates/storage",
     "crates/sync-contracts",
+    "crates/platform",
     "crates/platform-windows",
+    "crates/platform-linux",
     "apps/desktop/src-tauri",
 ]
 

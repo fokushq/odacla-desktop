@@ -1,6 +1,6 @@
 //! Windows-specific implementation of activity detection.
 
-use crate::{ActivityDetector, PlatformError, WindowInfo};
+use fokus_platform::{extract_app_name, normalize_app_name, ActivityDetector, PlatformError, WindowInfo};
 
 #[cfg(windows)]
 mod win32 {
@@ -73,43 +73,6 @@ mod win32 {
                 }
             }
             Err(_) => Ok(None),
-        }
-    }
-
-    /// Extract the application name stem from a full exe path.
-    /// `"C:\...\pycharm64.exe"` → `"pycharm64"`
-    pub(super) fn extract_app_name(process_path: &str) -> String {
-        std::path::Path::new(process_path)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("Unknown")
-            .to_string()
-    }
-
-    /// Map raw process name stems to human-readable canonical names.
-    /// Matching is case-insensitive (caller lowercases `raw`).
-    /// Apps not in this map are returned unchanged, preserving existing
-    /// whitelist/rule compatibility for "Code", "WindowsTerminal", etc.
-    pub(super) fn normalize_app_name(raw: &str) -> String {
-        match raw.to_lowercase().as_str() {
-            // ── JetBrains IDEs ──────────────────────────────────────────
-            "pycharm64" | "pycharm"               => "PyCharm".to_string(),
-            "idea64"    | "idea"                  => "IntelliJ IDEA".to_string(),
-            "webstorm64"| "webstorm"              => "WebStorm".to_string(),
-            "clion64"   | "clion"                 => "CLion".to_string(),
-            "goland64"  | "goland"                => "GoLand".to_string(),
-            "rider64"   | "rider"                 => "Rider".to_string(),
-            "datagrip64"| "datagrip"              => "DataGrip".to_string(),
-            "phpstorm64"| "phpstorm"              => "PhpStorm".to_string(),
-            "rubymine64"| "rubymine"              => "RubyMine".to_string(),
-            "androidstudio" | "studio64"          => "Android Studio".to_string(),
-            // ── Other common apps with non-obvious exe names ────────────
-            "devenv"                              => "Visual Studio".to_string(),
-            "obs64"                               => "OBS Studio".to_string(),
-            "powerpnt"                            => "PowerPoint".to_string(),
-            "winword"                             => "Word".to_string(),
-            // ── Pass through unchanged ──────────────────────────────────
-            _ => raw.to_string(),
         }
     }
 
@@ -206,13 +169,8 @@ mod win32 {
                 Ok(idle_ms / 1000)
             }
         }
-    }
 
-    impl WindowsActivityDetectorImpl {
-        /// Enumerate all currently visible top-level windows and return them
-        /// as a list of `WindowInfo`. Each window is normalized and filtered
-        /// to exclude system windows without titles or process access.
-        pub fn get_visible_windows(&self) -> Vec<WindowInfo> {
+        fn get_visible_windows(&self) -> Vec<WindowInfo> {
             let mut list: Vec<WindowInfo> = Vec::new();
             unsafe {
                 if let Err(e) = EnumWindows(
@@ -239,30 +197,6 @@ impl WindowsActivityDetector {
             #[cfg(windows)]
             inner: win32::WindowsActivityDetectorImpl::new(),
         }
-    }
-
-    /// Enumerate all currently visible top-level windows.
-    /// Used by the `get_running_apps` Tauri command to power the live app picker.
-    #[cfg(windows)]
-    pub fn get_visible_windows(&self) -> Vec<WindowInfo> {
-        self.inner.get_visible_windows()
-    }
-
-    /// Non-Windows stub — returns a small mock list for development builds.
-    #[cfg(not(windows))]
-    pub fn get_visible_windows(&self) -> Vec<WindowInfo> {
-        vec![
-            WindowInfo {
-                app_name: "MockBrowser".to_string(),
-                window_title: "Mock Browser Window".to_string(),
-                process_path: Some("/usr/bin/mock-browser".to_string()),
-            },
-            WindowInfo {
-                app_name: "MockEditor".to_string(),
-                window_title: "Mock Editor — Development Mode".to_string(),
-                process_path: Some("/usr/bin/mock-editor".to_string()),
-            },
-        ]
     }
 }
 
@@ -291,6 +225,28 @@ impl ActivityDetector for WindowsActivityDetector {
         #[cfg(not(windows))]
         {
             Ok(0)
+        }
+    }
+
+    fn get_visible_windows(&self) -> Vec<WindowInfo> {
+        #[cfg(windows)]
+        {
+            self.inner.get_visible_windows()
+        }
+        #[cfg(not(windows))]
+        {
+            vec![
+                WindowInfo {
+                    app_name: "MockBrowser".to_string(),
+                    window_title: "Mock Browser Window".to_string(),
+                    process_path: Some("/usr/bin/mock-browser".to_string()),
+                },
+                WindowInfo {
+                    app_name: "MockEditor".to_string(),
+                    window_title: "Mock Editor — Development Mode".to_string(),
+                    process_path: Some("/usr/bin/mock-editor".to_string()),
+                },
+            ]
         }
     }
 }

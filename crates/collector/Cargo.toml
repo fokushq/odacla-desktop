@@ -6,9 +6,15 @@ edition.workspace = true
 [dependencies]
 fokus-domain = { path = "../domain" }
 fokus-classifier = { path = "../classifier" }
-fokus-platform-windows = { path = "../platform-windows" }
+fokus-platform = { path = "../platform" }
 fokus-storage = { path = "../storage" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+fokus-platform-windows = { path = "../platform-windows" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+fokus-platform-linux = { path = "../platform-linux" }

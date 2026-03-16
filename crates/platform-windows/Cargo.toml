@@ -4,9 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-fokus-domain = { path = "../domain" }
+fokus-platform = { path = "../platform" }
 tracing = { workspace = true }
-thiserror = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
