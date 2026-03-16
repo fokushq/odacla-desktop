@@ -362,7 +362,7 @@
   }
   .bars-area { flex: 1; display: flex; align-items: flex-end; gap: 10px; border-bottom: 1px solid #e8eaed; padding-bottom: 24px; }
   .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
-  .bar-stack { width: 100%; max-width: 56px; display: flex; flex-direction: column-reverse; border-radius: 4px 4px 0 0; overflow: hidden; cursor: pointer; }
+  .bar-stack { width: 100%; max-width: 56px; display: flex; flex-direction: column-reverse; border-radius: 4px 4px 0 0; overflow: hidden; cursor: pointer; flex: 1; }
   .bar-stack:hover { opacity: 0.8; }
   .bar-seg.prod { background: #3B82F6; }
   .bar-seg.other { background: #BFDBFE; }

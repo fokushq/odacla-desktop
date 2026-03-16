@@ -278,8 +278,8 @@
           </div>
         </div>
         <div class="chart-legend">
-          <span class="leg"><span class="dot prod-dot"></span> Productive</span>
-          <span class="leg"><span class="dot other-dot"></span> Other</span>
+          <span class="leg"><span class="dot prod-dot"></span> Productive <span class="leg-detail">(Coding, Study, etc.)</span></span>
+          <span class="leg"><span class="dot other-dot"></span> Other <span class="leg-detail">(Idle, Entertainment)</span></span>
         </div>
       </div>
 
@@ -390,13 +390,14 @@
   .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
   .bar-stack {
     width: 100%; max-width: 44px; display: flex; flex-direction: column-reverse;
-    border-radius: 4px 4px 0 0; overflow: hidden; cursor: pointer;
+    border-radius: 4px 4px 0 0; overflow: hidden; cursor: pointer; flex: 1;
   }
   .bar-stack:hover { opacity: 0.8; }
   .bar-seg.prod { background: #3B82F6; }
   .bar-seg.other { background: #BFDBFE; }
   .bar-day { font-size: 12px; color: #8b8fa3; margin-top: 8px; }
-  .chart-legend { display: flex; gap: 20px; font-size: 12px; color: #5a5f7a; }
+  .chart-legend { display: flex; gap: 20px; font-size: 12px; color: #5a5f7a; flex-wrap: wrap; }
+  .leg-detail { color: #b0b4c8; font-size: 11px; }
   .leg { display: flex; align-items: center; gap: 6px; }
   .dot { width: 10px; height: 10px; border-radius: 3px; }
   .prod-dot { background: #3B82F6; }

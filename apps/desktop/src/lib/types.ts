@@ -120,13 +120,17 @@ export function categoryName(category: Category): string {
   return names[category] ?? "Uncategorized";
 }
 
-/** Format seconds into a human-readable duration string */
+/** Format seconds into a human-readable duration string.
+ *  Shows seconds precision when under 1 hour to avoid rounding mismatches
+ *  (e.g., parts showing 14m + 4m = 18m but total showing 19m). */
 export function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
   if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0 && seconds > 0) return `${minutes}m ${seconds}s`;
   if (minutes > 0) return `${minutes}m`;
-  return `${totalSeconds}s`;
+  return `${seconds}s`;
 }
 
 /** Format an ISO timestamp to a time string (e.g., "14:32") */
