@@ -5,16 +5,152 @@ use crate::{ActivityDetector, PlatformError, WindowInfo};
 #[cfg(windows)]
 mod win32 {
     use super::*;
-    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Foundation::{BOOL, HWND, LPARAM, TRUE};
     use windows::Win32::System::Threading::{
         OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
         PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
     };
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
-        GetWindowThreadProcessId,
+        EnumWindows, GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
+        GetWindowThreadProcessId, IsWindowVisible,
     };
+
+    // ─── Free helper functions ──────────────────────────────────────────────
+    // These are free functions (not associated methods) so they can be called
+    // from the EnumWindows callback, which is a bare `extern "system" fn`.
+
+    /// Read the window title from a window handle.
+    pub(super) unsafe fn get_window_title(hwnd: HWND) -> Result<String, PlatformError> {
+        let length = GetWindowTextLengthW(hwnd);
+        if length == 0 {
+            return Ok(String::new());
+        }
+
+        // +1 for the null terminator that Windows expects
+        let mut buffer: Vec<u16> = vec![0; (length + 1) as usize];
+        let copied = GetWindowTextW(hwnd, &mut buffer);
+
+        if copied == 0 {
+            return Ok(String::new());
+        }
+
+        Ok(String::from_utf16_lossy(&buffer[..copied as usize]))
+    }
+
+    /// Get the executable path for the process that owns a window.
+    pub(super) unsafe fn get_process_path(hwnd: HWND) -> Result<Option<String>, PlatformError> {
+        let mut process_id: u32 = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+
+        if process_id == 0 {
+            return Ok(None);
+        }
+
+        let process_handle = OpenProcess(
+            PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+            false,
+            process_id,
+        );
+
+        match process_handle {
+            Ok(handle) => {
+                let mut buffer: Vec<u16> = vec![0; 1024];
+                let mut size = buffer.len() as u32;
+
+                let result = QueryFullProcessImageNameW(
+                    handle,
+                    PROCESS_NAME_FORMAT(0),
+                    windows::core::PWSTR(buffer.as_mut_ptr()),
+                    &mut size,
+                );
+
+                if result.is_ok() {
+                    let path = String::from_utf16_lossy(&buffer[..size as usize]);
+                    Ok(Some(path))
+                } else {
+                    Ok(None)
+                }
+            }
+            Err(_) => Ok(None),
+        }
+    }
+
+    /// Extract the application name stem from a full exe path.
+    /// `"C:\...\pycharm64.exe"` → `"pycharm64"`
+    pub(super) fn extract_app_name(process_path: &str) -> String {
+        std::path::Path::new(process_path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Unknown")
+            .to_string()
+    }
+
+    /// Map raw process name stems to human-readable canonical names.
+    /// Matching is case-insensitive (caller lowercases `raw`).
+    /// Apps not in this map are returned unchanged, preserving existing
+    /// whitelist/rule compatibility for "Code", "WindowsTerminal", etc.
+    pub(super) fn normalize_app_name(raw: &str) -> String {
+        match raw.to_lowercase().as_str() {
+            // ── JetBrains IDEs ──────────────────────────────────────────
+            "pycharm64" | "pycharm"               => "PyCharm".to_string(),
+            "idea64"    | "idea"                  => "IntelliJ IDEA".to_string(),
+            "webstorm64"| "webstorm"              => "WebStorm".to_string(),
+            "clion64"   | "clion"                 => "CLion".to_string(),
+            "goland64"  | "goland"                => "GoLand".to_string(),
+            "rider64"   | "rider"                 => "Rider".to_string(),
+            "datagrip64"| "datagrip"              => "DataGrip".to_string(),
+            "phpstorm64"| "phpstorm"              => "PhpStorm".to_string(),
+            "rubymine64"| "rubymine"              => "RubyMine".to_string(),
+            "androidstudio" | "studio64"          => "Android Studio".to_string(),
+            // ── Other common apps with non-obvious exe names ────────────
+            "devenv"                              => "Visual Studio".to_string(),
+            "obs64"                               => "OBS Studio".to_string(),
+            "powerpnt"                            => "PowerPoint".to_string(),
+            "winword"                             => "Word".to_string(),
+            // ── Pass through unchanged ──────────────────────────────────
+            _ => raw.to_string(),
+        }
+    }
+
+    // ─── EnumWindows callback ───────────────────────────────────────────────
+
+    /// Callback for `EnumWindows`. Collects visible top-level windows with
+    /// non-empty titles into a `Vec<WindowInfo>` passed via `lparam`.
+    unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        // Safety: lparam is a valid *mut Vec<WindowInfo> for the duration of
+        // the EnumWindows call in get_visible_windows.
+        let list = &mut *(lparam.0 as *mut Vec<WindowInfo>);
+
+        // Filter: must be a visible window.
+        if !IsWindowVisible(hwnd).as_bool() {
+            return TRUE;
+        }
+
+        // Filter: must have a non-empty title.
+        let title = match get_window_title(hwnd) {
+            Ok(t) if !t.is_empty() => t,
+            _ => return TRUE,
+        };
+
+        // Filter: must have a valid process path (skips system/protected processes).
+        let process_path = match get_process_path(hwnd) {
+            Ok(Some(p)) => p,
+            _ => return TRUE,
+        };
+
+        let app_name = normalize_app_name(&extract_app_name(&process_path));
+
+        list.push(WindowInfo {
+            app_name,
+            window_title: title,
+            process_path: Some(process_path),
+        });
+
+        TRUE // continue enumeration
+    }
+
+    // ─── Detector implementation ────────────────────────────────────────────
 
     /// The Windows implementation of ActivityDetector.
     pub struct WindowsActivityDetectorImpl;
@@ -22,75 +158,6 @@ mod win32 {
     impl WindowsActivityDetectorImpl {
         pub fn new() -> Self {
             Self
-        }
-
-        /// Read the window title from a window handle.
-        fn get_window_title(hwnd: HWND) -> Result<String, PlatformError> {
-            unsafe {
-                let length = GetWindowTextLengthW(hwnd);
-                if length == 0 {
-                    return Ok(String::new());
-                }
-
-                // +1 for the null terminator that Windows expects
-                let mut buffer: Vec<u16> = vec![0; (length + 1) as usize];
-                let copied = GetWindowTextW(hwnd, &mut buffer);
-
-                if copied == 0 {
-                    return Ok(String::new());
-                }
-
-                Ok(String::from_utf16_lossy(&buffer[..copied as usize]))
-            }
-        }
-
-        /// Get the executable path for the process that owns a window.
-        fn get_process_path(hwnd: HWND) -> Result<Option<String>, PlatformError> {
-            unsafe {
-                let mut process_id: u32 = 0;
-                GetWindowThreadProcessId(hwnd, Some(&mut process_id));
-
-                if process_id == 0 {
-                    return Ok(None);
-                }
-
-                let process_handle = OpenProcess(
-                    PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
-                    false,
-                    process_id,
-                );
-
-                match process_handle {
-                    Ok(handle) => {
-                        let mut buffer: Vec<u16> = vec![0; 1024];
-                        let mut size = buffer.len() as u32;
-
-                        let result = QueryFullProcessImageNameW(
-                            handle,
-                            PROCESS_NAME_FORMAT(0),
-                            windows::core::PWSTR(buffer.as_mut_ptr()),
-                            &mut size,
-                        );
-
-                        if result.is_ok() {
-                            let path = String::from_utf16_lossy(&buffer[..size as usize]);
-                            Ok(Some(path))
-                        } else {
-                            Ok(None)
-                        }
-                    }
-                    Err(_) => Ok(None),
-                }
-            }
-        }
-
-        /// Extract the application name from a full exe path.
-        fn extract_app_name(process_path: &str) -> String {
-            std::path::Path::new(process_path)
-                .file_stem()                    // "Code.exe" → "Code"
-                .and_then(|s| s.to_str())       // OsStr → &str
-                .unwrap_or("Unknown")
-                .to_string()
         }
     }
 
@@ -103,12 +170,12 @@ mod win32 {
                     return Ok(None);
                 }
 
-                let title = Self::get_window_title(hwnd)?;
-                let process_path = Self::get_process_path(hwnd)?;
+                let title = get_window_title(hwnd)?;
+                let process_path = get_process_path(hwnd)?;
 
                 let app_name = process_path
                     .as_ref()
-                    .map(|p| Self::extract_app_name(p))
+                    .map(|p| normalize_app_name(&extract_app_name(p)))
                     .unwrap_or_else(|| "Unknown".to_string());
 
                 Ok(Some(WindowInfo {
@@ -140,6 +207,24 @@ mod win32 {
             }
         }
     }
+
+    impl WindowsActivityDetectorImpl {
+        /// Enumerate all currently visible top-level windows and return them
+        /// as a list of `WindowInfo`. Each window is normalized and filtered
+        /// to exclude system windows without titles or process access.
+        pub fn get_visible_windows(&self) -> Vec<WindowInfo> {
+            let mut list: Vec<WindowInfo> = Vec::new();
+            unsafe {
+                if let Err(e) = EnumWindows(
+                    Some(enum_windows_callback),
+                    LPARAM(&mut list as *mut Vec<WindowInfo> as isize),
+                ) {
+                    tracing::warn!("EnumWindows returned error: {}", e);
+                }
+            }
+            list
+        }
+    }
 }
 
 /// Cross-platform wrapper.
@@ -154,6 +239,30 @@ impl WindowsActivityDetector {
             #[cfg(windows)]
             inner: win32::WindowsActivityDetectorImpl::new(),
         }
+    }
+
+    /// Enumerate all currently visible top-level windows.
+    /// Used by the `get_running_apps` Tauri command to power the live app picker.
+    #[cfg(windows)]
+    pub fn get_visible_windows(&self) -> Vec<WindowInfo> {
+        self.inner.get_visible_windows()
+    }
+
+    /// Non-Windows stub — returns a small mock list for development builds.
+    #[cfg(not(windows))]
+    pub fn get_visible_windows(&self) -> Vec<WindowInfo> {
+        vec![
+            WindowInfo {
+                app_name: "MockBrowser".to_string(),
+                window_title: "Mock Browser Window".to_string(),
+                process_path: Some("/usr/bin/mock-browser".to_string()),
+            },
+            WindowInfo {
+                app_name: "MockEditor".to_string(),
+                window_title: "Mock Editor — Development Mode".to_string(),
+                process_path: Some("/usr/bin/mock-editor".to_string()),
+            },
+        ]
     }
 }
 

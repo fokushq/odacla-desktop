@@ -103,6 +103,7 @@ fn main() {
             commands::save_settings,
             commands::get_active_session,
             commands::get_detected_apps,
+            commands::get_running_apps,
         ])
         .run(tauri::generate_context!())
         .expect("Failed to run Fokus");

@@ -10,11 +10,12 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getSettings, saveSettings, getDetectedApps } from "$lib/api";
+  import { getSettings, saveSettings, getDetectedApps, getRunningApps } from "$lib/api";
   import type { Settings, TrackingMode } from "$lib/types";
 
   let settings: Settings | null = null;
-  let detectedApps: string[] = [];
+  let detectedApps: string[] = [];   // historical — from DB sessions
+  let runningApps: string[] = [];    // live — from OS EnumWindows
   let loading = true;
   let saving = false;
   let saveMessage = "";
@@ -24,9 +25,14 @@
   async function fetchSettings() {
     loading = true;
     try {
-      const [s, apps] = await Promise.all([getSettings(), getDetectedApps()]);
+      const [s, historical, live] = await Promise.all([
+        getSettings(),
+        getDetectedApps().catch(() => [] as string[]),
+        getRunningApps().catch(() => [] as string[]),
+      ]);
       settings = s;
-      detectedApps = apps;
+      detectedApps = historical;
+      runningApps = live;
     } catch (e) {
       console.error("Failed to load settings:", e);
     } finally {
@@ -107,13 +113,37 @@
     }
   }
 
-  /** Filter detected apps: show those NOT already in the current list */
-  $: availableForWhitelist = settings
-    ? detectedApps.filter((a) => !isInWhitelist(a) && a.toLowerCase() !== "fokus" && !a.toLowerCase().includes("fokus"))
+  // ─── Reactive chip lists ────────────────────────────────────────
+  // Running apps (live) — primary picker, shown first with green chips
+  $: runningAvailableForWhitelist = settings
+    ? runningApps.filter(
+        (a) => !isInWhitelist(a) && !a.toLowerCase().includes("fokus")
+      )
     : [];
 
-  $: availableForExclude = settings
-    ? detectedApps.filter((a) => !isInExcludeList(a) && a.toLowerCase() !== "fokus" && !a.toLowerCase().includes("fokus"))
+  $: runningAvailableForExclude = settings
+    ? runningApps.filter(
+        (a) => !isInExcludeList(a) && !a.toLowerCase().includes("fokus")
+      )
+    : [];
+
+  // Historical apps — secondary picker, deduped against the running list
+  $: historicalAvailableForWhitelist = settings
+    ? detectedApps.filter(
+        (a) =>
+          !isInWhitelist(a) &&
+          !a.toLowerCase().includes("fokus") &&
+          !runningAvailableForWhitelist.includes(a)
+      )
+    : [];
+
+  $: historicalAvailableForExclude = settings
+    ? detectedApps.filter(
+        (a) =>
+          !isInExcludeList(a) &&
+          !a.toLowerCase().includes("fokus") &&
+          !runningAvailableForExclude.includes(a)
+      )
     : [];
 
   onMount(fetchSettings);
@@ -194,12 +224,26 @@
           <button class="btn-secondary" on:click={addExcludedApp}>Add</button>
         </div>
 
-        <!-- Detected apps quick-add -->
-        {#if availableForExclude.length > 0}
+        <!-- Currently running apps — primary picker -->
+        {#if runningAvailableForExclude.length > 0}
           <div class="detected-section">
-            <p class="detected-label">Detected applications — click to exclude:</p>
+            <p class="detected-label">Currently running — click to exclude:</p>
             <div class="detected-chips">
-              {#each availableForExclude as app}
+              {#each runningAvailableForExclude as app}
+                <button class="chip chip-live" on:click={() => addDetectedToExcludeList(app)}>
+                  + {app}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <!-- Previously detected apps — secondary picker -->
+        {#if historicalAvailableForExclude.length > 0}
+          <div class="detected-section">
+            <p class="detected-label">Previously detected — click to exclude:</p>
+            <div class="detected-chips">
+              {#each historicalAvailableForExclude as app}
                 <button class="chip" on:click={() => addDetectedToExcludeList(app)}>
                   + {app}
                 </button>
@@ -241,12 +285,26 @@
           <button class="btn-secondary" on:click={addIncludedApp}>Add</button>
         </div>
 
-        <!-- Detected apps quick-add -->
-        {#if availableForWhitelist.length > 0}
+        <!-- Currently running apps — primary picker -->
+        {#if runningAvailableForWhitelist.length > 0}
           <div class="detected-section">
-            <p class="detected-label">Detected applications — click to add to whitelist:</p>
+            <p class="detected-label">Currently running — click to add to whitelist:</p>
             <div class="detected-chips">
-              {#each availableForWhitelist as app}
+              {#each runningAvailableForWhitelist as app}
+                <button class="chip chip-live" on:click={() => addDetectedToWhitelist(app)}>
+                  + {app}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <!-- Previously detected apps — secondary picker -->
+        {#if historicalAvailableForWhitelist.length > 0}
+          <div class="detected-section">
+            <p class="detected-label">Previously detected — click to add to whitelist:</p>
+            <div class="detected-chips">
+              {#each historicalAvailableForWhitelist as app}
                 <button class="chip" on:click={() => addDetectedToWhitelist(app)}>
                   + {app}
                 </button>
@@ -593,6 +651,7 @@
     gap: 6px;
   }
 
+  /* Default chip — for historically detected apps */
   .chip {
     padding: 5px 12px;
     background: #eef2ff;
@@ -610,6 +669,19 @@
     background: #3b5bdb;
     color: white;
     border-color: #3b5bdb;
+  }
+
+  /* Live chip — for currently running apps */
+  .chip-live {
+    background: #ebfbee;
+    color: #2f9e44;
+    border-color: #8ce99a;
+  }
+
+  .chip-live:hover {
+    background: #2f9e44;
+    color: white;
+    border-color: #2f9e44;
   }
 
   .loading-state {

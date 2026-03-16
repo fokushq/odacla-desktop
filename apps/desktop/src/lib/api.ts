@@ -60,6 +60,13 @@ export async function getDetectedApps(): Promise<string[]> {
   return invoke<string[]>("get_detected_apps");
 }
 
+/** Fetch all currently visible top-level application windows from the OS.
+ *  Uses EnumWindows — returns live running apps, not just historically tracked ones.
+ *  Names are normalized (e.g. pycharm64 → PyCharm). Fokus itself is filtered out. */
+export async function getRunningApps(): Promise<string[]> {
+  return invoke<string[]>("get_running_apps");
+}
+
 // ─── Rollup Queries ─────────────────────────────────────────────────────────
 
 /** Fetch today's daily rollups (using local date) */
