@@ -21,11 +21,6 @@
         "center": true
       }
     ],
-    "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": true,
-      "tooltip": "Fokus — Time Tracker"
-    },
     "security": {
       "csp": null
     }

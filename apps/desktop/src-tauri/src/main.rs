@@ -11,7 +11,10 @@ mod state;
 
 use std::sync::{Arc, Mutex};
 
-use tauri::Manager;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{Manager, WindowEvent};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tokio::sync::watch;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
@@ -32,6 +35,30 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .on_window_event(|window, event| {
+            // Closing the window minimizes to tray so tracking keeps running.
+            // If the tray icon is disabled in settings, closing quits the app.
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let app = window.app_handle();
+                let hide_to_tray = app
+                    .state::<state::AppState>()
+                    .settings
+                    .lock()
+                    .map(|s| s.show_tray_icon)
+                    .unwrap_or(true);
+
+                if hide_to_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else if let Some(handle) = app.try_state::<state::ShutdownHandle>() {
+                    let _ = handle.0.send(true);
+                }
+            }
+        })
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -72,6 +99,60 @@ fn main() {
 
             let (shutdown_tx, shutdown_rx) = watch::channel(false);
             app.manage(state::ShutdownHandle(shutdown_tx));
+
+            // ─── System tray ────────────────────────────────────────
+            let show_tray = settings.lock().map(|s| s.show_tray_icon).unwrap_or(true);
+
+            let show_item = MenuItem::with_id(app, "show", "Show Fokus", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit Fokus", true, None::<&str>)?;
+            let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+            let tray = TrayIconBuilder::with_id("main")
+                .icon(
+                    app.default_window_icon()
+                        .expect("bundle icon missing")
+                        .clone(),
+                )
+                .icon_as_template(true)
+                .tooltip("Fokus — Time Tracker")
+                .menu(&tray_menu)
+                .show_menu_on_left_click(true)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        // Signal the collector so it can finalize the current
+                        // session, then exit shortly after.
+                        if let Some(handle) = app.try_state::<state::ShutdownHandle>() {
+                            let _ = handle.0.send(true);
+                        }
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+                            app.exit(0);
+                        });
+                    }
+                    _ => {}
+                })
+                .build(app)?;
+            let _ = tray.set_visible(show_tray);
+
+            // ─── Autostart — sync OS state with the stored setting ──
+            let start_on_boot = settings.lock().map(|s| s.start_on_boot).unwrap_or(false);
+            let autolaunch = app.autolaunch();
+            let result = if start_on_boot {
+                autolaunch.enable()
+            } else {
+                autolaunch.disable()
+            };
+            if let Err(e) = result {
+                warn!("Failed to sync autostart state: {}", e);
+            }
 
             let collector_db = db.clone();
             let collector_classifier = classifier.clone();

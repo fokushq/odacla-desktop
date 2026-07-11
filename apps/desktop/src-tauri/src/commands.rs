@@ -176,10 +176,35 @@ pub fn get_settings(state: State<AppState>) -> Result<Settings, String> {
 
 /// Save updated settings.
 /// Updates both SQLite and the shared settings so changes take effect immediately.
+/// Also applies side effects that live outside the collector: tray icon
+/// visibility and the OS autostart entry.
 #[tauri::command]
-pub fn save_settings(settings: Settings, state: State<AppState>) -> Result<(), String> {
+pub fn save_settings(
+    app: tauri::AppHandle,
+    settings: Settings,
+    state: State<AppState>,
+) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.save_settings(&settings).map_err(|e| e.to_string())?;
+
+    // Apply tray visibility immediately
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_visible(settings.show_tray_icon);
+    }
+
+    // Apply autostart immediately
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        let autolaunch = app.autolaunch();
+        let result = if settings.start_on_boot {
+            autolaunch.enable()
+        } else {
+            autolaunch.disable()
+        };
+        if let Err(e) = result {
+            tracing::warn!("Failed to update autostart: {}", e);
+        }
+    }
 
     // Hot-reload: update the shared settings so the collector sees the change
     let mut shared = state.settings.lock().map_err(|e| e.to_string())?;
