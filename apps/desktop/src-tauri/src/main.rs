@@ -71,14 +71,14 @@ fn main() {
             let db = Database::open(&db_path)
                 .expect("Failed to open database");
 
-            match db.close_stale_sessions() {
+            let settings = db.get_settings()
+                .unwrap_or_default();
+
+            match db.close_stale_sessions(settings.polling_interval_secs) {
                 Ok(0) => info!("No stale sessions to clean up"),
                 Ok(n) => warn!("Closed {} stale session(s) from previous run", n),
                 Err(e) => warn!("Failed to close stale sessions: {}", e),
             }
-
-            let settings = db.get_settings()
-                .unwrap_or_default();
 
             let rules = db.get_all_rules()
                 .unwrap_or_default();

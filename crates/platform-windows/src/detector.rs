@@ -1,6 +1,8 @@
 //! Windows-specific implementation of activity detection.
 
-use fokus_platform::{extract_app_name, normalize_app_name, ActivityDetector, PlatformError, WindowInfo};
+#[cfg(windows)]
+use fokus_platform::{extract_app_name, normalize_app_name};
+use fokus_platform::{ActivityDetector, PlatformError, WindowInfo};
 
 #[cfg(windows)]
 mod win32 {

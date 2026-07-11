@@ -285,13 +285,27 @@ impl Collector {
                     duration_secs = duration_secs, "Session finalized"
                 );
             } else {
-                // Close the short session in DB but don't add to rollups
+                // Too short to be meaningful — remove it entirely so that
+                // session-derived stats stay consistent with the rollups.
+                // If periodic flushes already credited time to the rollup
+                // (possible when min duration exceeds the flush interval),
+                // take that time back.
                 if let Ok(db) = self.db.lock() {
-                    let _ = db.update_session(&session);
+                    let _ = db.delete_session(&session.id);
+                    if self.last_rollup_seconds > 0 {
+                        let date = session.start_time.date_naive();
+                        if let Err(e) = db.upsert_daily_rollup_seconds(
+                            date,
+                            &category,
+                            -self.last_rollup_seconds,
+                        ) {
+                            error!("Failed to revert rollup for discarded session: {}", e);
+                        }
+                    }
                 }
                 debug!(
                     app = %session.app_name, duration_secs = duration_secs,
-                    "Session too short, closed but not rolled up"
+                    "Session too short, discarded"
                 );
             }
 

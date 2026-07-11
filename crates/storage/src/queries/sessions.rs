@@ -116,13 +116,28 @@ impl Database {
         Ok(sessions)
     }
 
+    /// Delete a session by ID.
+    ///
+    /// Used by the collector to discard sessions shorter than the minimum
+    /// duration — keeping them would make session-derived stats disagree
+    /// with the rollups, which never include them.
+    pub fn delete_session(&self, session_id: &Uuid) -> Result<(), StorageError> {
+        self.conn.execute(
+            "DELETE FROM sessions WHERE id = ?1",
+            [session_id.to_string()],
+        )?;
+        Ok(())
+    }
+
     /// Close active (unclosed) sessions from previous app runs.
-    pub fn close_stale_sessions(&self) -> Result<u32, StorageError> {
+    /// The end time is estimated from the number of observed polls times
+    /// the configured polling interval.
+    pub fn close_stale_sessions(&self, polling_interval_secs: u32) -> Result<u32, StorageError> {
         let count = self.conn.execute(
             r#"UPDATE sessions
-               SET end_time = strftime('%Y-%m-%dT%H:%M:%S+00:00', start_time, '+' || (activity_count * 5) || ' seconds')
+               SET end_time = strftime('%Y-%m-%dT%H:%M:%S+00:00', start_time, '+' || (activity_count * ?1) || ' seconds')
                WHERE end_time IS NULL"#,
-            [],
+            [polling_interval_secs],
         )?;
         Ok(count as u32)
     }
