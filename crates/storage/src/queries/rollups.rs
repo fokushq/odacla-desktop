@@ -55,27 +55,6 @@ impl Database {
         Ok(())
     }
 
-    /// Legacy upsert — adds time and bumps session count (for backward compatibility).
-    pub fn upsert_daily_rollup(
-        &self,
-        date: NaiveDate,
-        category: &Category,
-        additional_seconds: i64,
-    ) -> Result<(), StorageError> {
-        let date_str = date.format("%Y-%m-%d").to_string();
-        let category_json = serde_json::to_string(category)?;
-
-        self.conn.execute(
-            r#"INSERT INTO daily_rollups (date, category, total_seconds, session_count)
-               VALUES (?1, ?2, ?3, 1)
-               ON CONFLICT(date, category) DO UPDATE SET
-                   total_seconds = total_seconds + ?3,
-                   session_count = session_count + 1"#,
-            rusqlite::params![date_str, category_json, additional_seconds],
-        )?;
-        Ok(())
-    }
-
     /// Get all rollups for a specific date.
     pub fn get_rollups_for_date(
         &self,

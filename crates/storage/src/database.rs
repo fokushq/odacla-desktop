@@ -68,6 +68,12 @@ impl Database {
             info!("Database already has {} rules, skipping seed", rule_count);
         }
 
+        // Migration: drop tables from earlier schema versions that were
+        // never written to by any code path (safe — always empty).
+        self.conn.execute_batch(
+            "DROP TABLE IF EXISTS raw_events; DROP TABLE IF EXISTS categories;",
+        )?;
+
         // Migration: PascalCase → snake_case categories
         self.conn.execute_batch(r#"
             UPDATE rules SET category = REPLACE(category, '"Coding"', '"coding"')       WHERE category LIKE '%"Coding"%';

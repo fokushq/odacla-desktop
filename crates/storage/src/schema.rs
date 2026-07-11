@@ -3,21 +3,6 @@
 /// SQL statements that create the Fokus database schema.
 /// Uses `IF NOT EXISTS` for safe startup execution.
 pub const SCHEMA_SQL: &str = r#"
--- Raw Events — Individual activity observations
-CREATE TABLE IF NOT EXISTS raw_events (
-    id              TEXT PRIMARY KEY,    -- UUID v4
-    timestamp       TEXT NOT NULL,       -- ISO 8601 datetime
-    app_name        TEXT NOT NULL,       -- Application name (e.g., "Code")
-    window_title    TEXT NOT NULL,       -- Full window title
-    url             TEXT,                -- URL if from browser extension
-    kind            TEXT NOT NULL,       -- "desktop" or "browser"
-    is_idle         INTEGER NOT NULL DEFAULT 0,  -- 1 = user was idle
-    idle_seconds    INTEGER NOT NULL DEFAULT 0   -- Seconds idle at observation time
-);
-
-CREATE INDEX IF NOT EXISTS idx_raw_events_timestamp
-    ON raw_events(timestamp);
-
 -- Sessions — Merged time blocks
 CREATE TABLE IF NOT EXISTS sessions (
     id                  TEXT PRIMARY KEY,    -- UUID v4
@@ -47,13 +32,6 @@ CREATE TABLE IF NOT EXISTS rules (
 
 CREATE INDEX IF NOT EXISTS idx_rules_priority
     ON rules(priority);
-
--- Categories — Custom user-defined categories
-CREATE TABLE IF NOT EXISTS categories (
-    id      TEXT PRIMARY KEY,
-    name    TEXT NOT NULL UNIQUE,
-    color   TEXT NOT NULL DEFAULT '#6366F1'  -- Hex color for UI
-);
 
 -- Daily Rollups — Pre-aggregated daily summaries
 CREATE TABLE IF NOT EXISTS daily_rollups (
