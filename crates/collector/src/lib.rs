@@ -55,15 +55,7 @@ impl Collector {
 
     /// Start the collection loop until shutdown signal is received.
     pub async fn run(&mut self, mut shutdown_rx: watch::Receiver<bool>) {
-        let interval_secs = {
-            let s = self.settings.lock().unwrap();
-            s.polling_interval_secs
-        };
-        let interval = Duration::from_secs(interval_secs as u64);
-        info!(
-            interval_secs = interval_secs,
-            "Collector starting with polling interval"
-        );
+        info!("Collector starting");
 
         loop {
             if *shutdown_rx.borrow() {
@@ -79,6 +71,14 @@ impl Collector {
                 self.flush_current_session();
                 self.polls_since_last_flush = 0;
             }
+
+            // Re-read the interval every cycle so changes from the Settings
+            // page take effect without restarting the app.
+            let interval_secs = {
+                let s = self.settings.lock().unwrap();
+                s.polling_interval_secs.max(1)
+            };
+            let interval = Duration::from_secs(interval_secs as u64);
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) => {},
