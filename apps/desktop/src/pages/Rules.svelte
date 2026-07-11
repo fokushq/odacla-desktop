@@ -15,13 +15,23 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getAllRules, createRule, deleteRule } from "$lib/api";
-  import type { Rule, Category, CreateRuleRequest } from "$lib/types";
+  import { getAllRules, createRule, updateRule, deleteRule } from "$lib/api";
+  import type { Rule, CreateRuleRequest } from "$lib/types";
   import { categoryColor, categoryName } from "$lib/types";
 
   let rules: Rule[] = [];
   let loading = true;
   let showForm = false;
+
+  // ─── Inline editing state ──────────────────────────────────────
+  let editingId: string | null = null;
+  let editForm = {
+    name: "",
+    pattern: "",
+    target: "app_name" as Rule["target"],
+    categoryJson: '"coding"',
+    priority: 100,
+  };
 
   // Form state for creating a new rule
   let newRule: CreateRuleRequest = {
@@ -76,6 +86,60 @@
     }
   }
 
+  // ─── Edit & toggle handlers ────────────────────────────────────
+  function startEdit(rule: Rule) {
+    editingId = rule.id;
+    editForm = {
+      name: rule.name,
+      pattern: rule.pattern,
+      target: rule.target,
+      categoryJson: JSON.stringify(rule.category),
+      priority: rule.priority,
+    };
+    showForm = false;
+  }
+
+  function cancelEdit() {
+    editingId = null;
+  }
+
+  async function handleUpdate(rule: Rule) {
+    if (!editForm.name || !editForm.pattern) return;
+    try {
+      await updateRule({
+        ...rule,
+        name: editForm.name,
+        pattern: editForm.pattern,
+        target: editForm.target,
+        category: JSON.parse(editForm.categoryJson),
+        priority: editForm.priority,
+      });
+      editingId = null;
+      await fetchRules();
+    } catch (e) {
+      console.error("Failed to update rule:", e);
+    }
+  }
+
+  async function toggleEnabled(rule: Rule) {
+    try {
+      await updateRule({ ...rule, enabled: !rule.enabled });
+      await fetchRules();
+    } catch (e) {
+      console.error("Failed to toggle rule:", e);
+    }
+  }
+
+  /** Dropdown options for the edit form — includes the rule's own category
+   *  even if it's a custom one that isn't in the built-in list. */
+  function editCategories(current: string): { value: string; label: string }[] {
+    if (categories.some((c) => c.value === current)) return categories;
+    return [
+      ...categories,
+      { value: current, label: categoryName(JSON.parse(current)) },
+    ];
+  }
+
   onMount(fetchRules);
 </script>
 
@@ -83,7 +147,7 @@
   <header class="page-header">
     <div>
       <h2 class="page-title">Classification Rules</h2>
-      <p class="page-subtitle">{rules.length} rules active</p>
+      <p class="page-subtitle">{rules.filter((r) => r.enabled).length} of {rules.length} rules active</p>
     </div>
     <button class="btn-primary" on:click={() => (showForm = !showForm)}>
       {showForm ? "Cancel" : "+ Add Rule"}
@@ -166,31 +230,78 @@
           </tr>
         </thead>
         <tbody>
-          {#each rules as rule}
-            <tr>
-              <td class="cell-priority">{rule.priority}</td>
-              <td class="cell-name">{rule.name}</td>
-              <td class="cell-pattern"><code>{rule.pattern}</code></td>
-              <td class="cell-target">{rule.target.replace("_", " ")}</td>
-              <td>
-                <span
-                  class="category-badge"
-                  style="background-color: {categoryColor(rule.category)}20; color: {categoryColor(rule.category)}"
-                >
-                  {categoryName(rule.category)}
-                </span>
-              </td>
-              <td>
-                <span class="status-badge" class:enabled={rule.enabled}>
-                  {rule.enabled ? "Active" : "Disabled"}
-                </span>
-              </td>
-              <td>
-                <button class="btn-delete" on:click={() => handleDelete(rule.id)}>
-                  Delete
-                </button>
-              </td>
-            </tr>
+          {#each rules as rule (rule.id)}
+            {#if editingId === rule.id}
+              <!-- ─── Inline edit row ─────────────────────────── -->
+              <tr class="editing-row">
+                <td>
+                  <input
+                    class="edit-input edit-priority"
+                    type="number"
+                    min="1"
+                    max="1000"
+                    bind:value={editForm.priority}
+                  />
+                </td>
+                <td>
+                  <input class="edit-input" type="text" bind:value={editForm.name} />
+                </td>
+                <td>
+                  <input class="edit-input" type="text" bind:value={editForm.pattern} />
+                </td>
+                <td>
+                  <select class="edit-input" bind:value={editForm.target}>
+                    <option value="app_name">app name</option>
+                    <option value="window_title">window title</option>
+                    <option value="url">url</option>
+                  </select>
+                </td>
+                <td>
+                  <select class="edit-input" bind:value={editForm.categoryJson}>
+                    {#each editCategories(editForm.categoryJson) as cat}
+                      <option value={cat.value}>{cat.label}</option>
+                    {/each}
+                  </select>
+                </td>
+                <td colspan="2" class="edit-actions">
+                  <button class="btn-save" on:click={() => handleUpdate(rule)}>Save</button>
+                  <button class="btn-cancel" on:click={cancelEdit}>Cancel</button>
+                </td>
+              </tr>
+            {:else}
+              <tr class:disabled-row={!rule.enabled}>
+                <td class="cell-priority">{rule.priority}</td>
+                <td class="cell-name">{rule.name}</td>
+                <td class="cell-pattern"><code>{rule.pattern}</code></td>
+                <td class="cell-target">{rule.target.replace("_", " ")}</td>
+                <td>
+                  <span
+                    class="category-badge"
+                    style="background-color: {categoryColor(rule.category)}20; color: {categoryColor(rule.category)}"
+                  >
+                    {categoryName(rule.category)}
+                  </span>
+                </td>
+                <td>
+                  <button
+                    class="status-toggle"
+                    class:enabled={rule.enabled}
+                    title={rule.enabled ? "Click to disable" : "Click to enable"}
+                    on:click={() => toggleEnabled(rule)}
+                  >
+                    {rule.enabled ? "Active" : "Disabled"}
+                  </button>
+                </td>
+                <td class="cell-actions">
+                  <button class="btn-edit" on:click={() => startEdit(rule)}>
+                    Edit
+                  </button>
+                  <button class="btn-delete" on:click={() => handleDelete(rule.id)}>
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            {/if}
           {/each}
         </tbody>
       </table>
@@ -364,14 +475,108 @@
     font-weight: 500;
   }
 
-  .status-badge {
+  .status-toggle {
     font-size: 12px;
     font-weight: 500;
     color: #e03131;
+    background: transparent;
+    border: 1px solid #ffc9c9;
+    border-radius: 12px;
+    padding: 3px 10px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
   }
 
-  .status-badge.enabled {
-    color: #10B981;
+  .status-toggle.enabled {
+    color: #10b981;
+    border-color: #a7f3d0;
+  }
+
+  .status-toggle:hover {
+    background: #f8f9fb;
+  }
+
+  .disabled-row {
+    opacity: 0.55;
+  }
+
+  .cell-actions {
+    white-space: nowrap;
+  }
+
+  .btn-edit {
+    padding: 5px 12px;
+    background: transparent;
+    color: #3b5bdb;
+    border: 1px solid #c5cee8;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    margin-right: 6px;
+    transition: all 0.15s;
+  }
+
+  .btn-edit:hover {
+    background: #eef2ff;
+  }
+
+  /* ─── Inline edit row ──────────────────────────────────────────── */
+  .editing-row {
+    background: #f8f9ff;
+  }
+
+  .edit-input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #c5cee8;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    color: #1a1a2e;
+    background: #ffffff;
+  }
+
+  .edit-input:focus {
+    outline: none;
+    border-color: #3b5bdb;
+  }
+
+  .edit-priority {
+    width: 64px;
+  }
+
+  .edit-actions {
+    white-space: nowrap;
+  }
+
+  .btn-save {
+    padding: 5px 14px;
+    background: #3b5bdb;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    margin-right: 6px;
+  }
+
+  .btn-save:hover {
+    background: #364fc7;
+  }
+
+  .btn-cancel {
+    padding: 5px 12px;
+    background: transparent;
+    color: #5a5f7a;
+    border: 1px solid #e8eaed;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
   }
 
   .loading-state {
