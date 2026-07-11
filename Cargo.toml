@@ -18,7 +18,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/user/fokus"
+repository = "https://github.com/fokushq/odacla-desktop"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

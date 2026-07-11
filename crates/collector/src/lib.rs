@@ -110,16 +110,21 @@ impl Collector {
             }
         };
 
-        // Step 2: ALWAYS exclude Fokus itself, regardless of tracking mode.
-        // This is hardcoded (not dependent on settings) because Fokus tracking
-        // itself pollutes the data with constant self-referential sessions.
-        // In IncludeList mode the excluded_apps list is skipped, so without
-        // this hardcoded check, Fokus would track itself in whitelist mode.
+        // Step 2: ALWAYS exclude Odacla itself, regardless of tracking mode.
+        // This is hardcoded (not dependent on settings) because the tracker
+        // tracking itself pollutes the data with constant self-referential
+        // sessions. In IncludeList mode the excluded_apps list is skipped, so
+        // without this check the app would track itself in whitelist mode.
+        // "fokus" is kept for pre-rename builds/installs.
         {
             let app_lower = window_info.app_name.to_lowercase();
             let title_lower = window_info.window_title.to_lowercase();
-            if app_lower.contains("fokus") || title_lower.contains("fokus") {
-                trace!(app = %window_info.app_name, "Skipping self (fokus)");
+            if app_lower.contains("odacla")
+                || title_lower.contains("odacla")
+                || app_lower.contains("fokus")
+                || title_lower.contains("fokus")
+            {
+                trace!(app = %window_info.app_name, "Skipping self");
                 return;
             }
         }

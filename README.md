@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="apps/desktop/src-tauri/icons/128x128.png" alt="Fokus" width="96" />
+  <img src="apps/desktop/src-tauri/icons/128x128.png" alt="Odacla" width="96" />
 </p>
 
-<h1 align="center">Fokus</h1>
+<h1 align="center">Odacla</h1>
 
 <p align="center">
   A lightweight, privacy-first desktop time tracker.<br/>
@@ -20,9 +20,9 @@
 
 ---
 
-## What is Fokus?
+## What is Odacla?
 
-Fokus silently monitors which applications you use, classifies them into categories (Coding, Study, Entertainment, etc.), and presents analytics through a clean dashboard — all without ever leaving your machine.
+Odacla silently monitors which applications you use, classifies them into categories (Coding, Study, Entertainment, etc.), and presents analytics through a clean dashboard — all without ever leaving your machine.
 
 **Key design goals:**
 
@@ -30,7 +30,7 @@ Fokus silently monitors which applications you use, classifies them into categor
 - **100% offline** — All data stays in a local SQLite database. No accounts, no cloud.
 - **Rule-based classification** — Flexible pattern-matching rules with priorities.
 - **Include/Exclude tracking** — Whitelist or blacklist mode for full control.
-- **Self-exclusion** — Fokus never tracks itself.
+- **Self-exclusion** — Odacla never tracks itself.
 - **Cross-platform** — Runs on Windows, Linux (X11), and macOS with a shared core and platform-specific detection layers.
 
 ## Screenshots
@@ -70,8 +70,8 @@ Fokus silently monitors which applications you use, classifies them into categor
 
 ```bash
 # Clone the repo
-git clone https://github.com/user/fokus.git
-cd fokus
+git clone https://github.com/fokushq/odacla-desktop.git
+cd odacla-desktop
 
 # Install frontend dependencies
 cd apps/desktop
@@ -93,7 +93,7 @@ The installer will be in `apps/desktop/src-tauri/target/release/bundle/`.
 ## Project Structure
 
 ```
-fokus/
+odacla/
 ├── apps/
 │   ├── desktop/                 # Tauri desktop application
 │   │   ├── src/                 # Svelte frontend
@@ -137,7 +137,7 @@ fokus/
    │  (loop) │  │ (rules)  │  │ (SQLite) │
    └────┬────┘  └──────────┘  └────┬─────┘
    ┌────▼──────────────┐      ┌────▼─────┐
-   │ Platform           │      │ fokus.db │
+   │ Platform           │      │ odacla.db │
    │ (trait)            │      └──────────┘
    ├────────────────────┤
    │ Windows: Win32 API │
@@ -167,20 +167,20 @@ Each crate has a single responsibility and compiles independently. The shared `p
 
 > **macOS note:** window *titles* require the Screen Recording permission
 > (System Settings → Privacy & Security → Screen Recording). Without it,
-> Fokus still tracks the active application name — title-based rules simply
+> Odacla still tracks the active application name — title-based rules simply
 > fall back to the app name.
 
 ## Privacy
 
-Fokus is designed to be completely offline:
+Odacla is designed to be completely offline:
 
 - **No network requests** — your data never leaves your machine.
 - **No screenshots, no keylogging** — only app name, window title, and (optionally) URL.
 - **You control what's tracked** — exclude or include specific apps.
 - **Delete anytime** — remove the database file and you're clean.
-  - Windows: `%APPDATA%/com.fokus.app/fokus.db`
-  - Linux: `~/.local/share/com.fokus.app/fokus.db`
-  - macOS: `~/Library/Application Support/com.fokus.app/fokus.db`
+  - Windows: `%APPDATA%/com.odacla.app/odacla.db`
+  - Linux: `~/.local/share/com.odacla.app/odacla.db`
+  - macOS: `~/Library/Application Support/com.odacla.app/odacla.db`
 
 See [docs/privacy.md](docs/privacy.md) for full details.
 
@@ -190,7 +190,7 @@ See [docs/privacy.md](docs/privacy.md) for full details.
 |---------|----------|
 | "Can't find windows crate" | Ensure you're on Windows with the Windows SDK installed |
 | "Failed to connect to X11 display" | Ensure you're running under X11, not Wayland (`echo $XDG_SESSION_TYPE`) |
-| "Database locked" | Only one instance of Fokus should run — check Task Manager / `ps aux` |
+| "Database locked" | Only one instance of Odacla should run — check Task Manager / `ps aux` |
 | No data showing | The collector needs a few seconds. Use your computer normally, then refresh |
 | Classification says "Uncategorized" | Check Rules page — add rules matching your apps |
 

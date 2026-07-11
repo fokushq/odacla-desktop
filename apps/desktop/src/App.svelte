@@ -37,7 +37,7 @@
   <!-- ─── Sidebar Navigation ─────────────────────────────────────── -->
   <nav class="sidebar">
     <div class="sidebar-header">
-      <h1 class="app-title">Fokus</h1>
+      <h1 class="app-title">Odacla</h1>
       <p class="app-subtitle">Time Tracker</p>
     </div>
 

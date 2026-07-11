@@ -47,7 +47,7 @@ jobs:
         with:
           projectPath: ./apps/desktop
           tagName: app-v__VERSION__
-          releaseName: 'Fokus v__VERSION__'
-          releaseBody: 'Fokus masaüstü uygulamasının yeni sürümü yayında! Aşağıdaki dosyalardan işletim sisteminize uygun olanı indirip kurabilirsiniz.'
+          releaseName: 'Odacla v__VERSION__'
+          releaseBody: 'Odacla masaüstü uygulamasının yeni sürümü yayında! Aşağıdaki dosyalardan işletim sisteminize uygun olanı indirip kurabilirsiniz.'
           releaseDraft: false
           prerelease: false

@@ -1,4 +1,4 @@
-//! Fokus Desktop Application — Main Entry Point
+//! Odacla Desktop Application — Main Entry Point
 
 // Prevents console window on Windows when running the app
 #![cfg_attr(
@@ -31,7 +31,7 @@ fn main() {
         )
         .init();
 
-    info!("Starting Fokus v{}", env!("CARGO_PKG_VERSION"));
+    info!("Starting Odacla v{}", env!("CARGO_PKG_VERSION"));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -65,8 +65,39 @@ fn main() {
                 .app_data_dir()
                 .expect("Failed to get app data directory");
 
-            let db_path = app_data_dir.join("fokus.db");
+            let db_path = app_data_dir.join("odacla.db");
             info!("Database path: {}", db_path.display());
+
+            // One-time migration: copy the database from the legacy Fokus
+            // install location (com.fokus.app/fokus.db) if this is a fresh
+            // Odacla install. WAL sidecar files are copied too so no
+            // un-checkpointed transactions are lost.
+            if !db_path.exists() {
+                if let Some(legacy_dir) = app_data_dir
+                    .parent()
+                    .map(|p| p.join("com.fokus.app"))
+                {
+                    let legacy_db = legacy_dir.join("fokus.db");
+                    if legacy_db.exists() {
+                        let _ = std::fs::create_dir_all(&app_data_dir);
+                        match std::fs::copy(&legacy_db, &db_path) {
+                            Ok(_) => {
+                                for ext in ["-wal", "-shm"] {
+                                    let src = legacy_dir.join(format!("fokus.db{ext}"));
+                                    if src.exists() {
+                                        let _ = std::fs::copy(
+                                            &src,
+                                            app_data_dir.join(format!("odacla.db{ext}")),
+                                        );
+                                    }
+                                }
+                                info!("Migrated legacy Fokus database from {}", legacy_db.display());
+                            }
+                            Err(e) => warn!("Failed to migrate legacy Fokus database: {}", e),
+                        }
+                    }
+                }
+            }
 
             let db = Database::open(&db_path)
                 .expect("Failed to open database");
@@ -103,8 +134,8 @@ fn main() {
             // ─── System tray ────────────────────────────────────────
             let show_tray = settings.lock().map(|s| s.show_tray_icon).unwrap_or(true);
 
-            let show_item = MenuItem::with_id(app, "show", "Show Fokus", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit Fokus", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show", "Show Odacla", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit Odacla", true, None::<&str>)?;
             let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
             let tray = TrayIconBuilder::with_id("main")
@@ -114,7 +145,7 @@ fn main() {
                         .clone(),
                 )
                 .icon_as_template(true)
-                .tooltip("Fokus — Time Tracker")
+                .tooltip("Odacla — Time Tracker")
                 .menu(&tray_menu)
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id.as_ref() {
@@ -167,7 +198,7 @@ fn main() {
                 collector.run(shutdown_rx).await;
             });
 
-            info!("Fokus initialized — collector running in background");
+            info!("Odacla initialized — collector running in background");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -187,5 +218,5 @@ fn main() {
             commands::get_running_apps,
         ])
         .run(tauri::generate_context!())
-        .expect("Failed to run Fokus");
+        .expect("Failed to run Odacla");
 }

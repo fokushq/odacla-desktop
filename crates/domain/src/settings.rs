@@ -60,9 +60,9 @@ impl Default for Settings {
             idle_threshold_secs: 300,
             tracking_mode: TrackingMode::ExcludeList,
             excluded_apps: vec![
-                "fokus-desktop".to_string(),
+                "odacla".to_string(),
+                "Odacla".to_string(),
                 "fokus".to_string(),
-                "Fokus".to_string(),
                 "1Password".to_string(),
                 "KeePass".to_string(),
                 "Bitwarden".to_string(),

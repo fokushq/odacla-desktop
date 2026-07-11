@@ -1,5 +1,5 @@
 // =============================================================================
-// Fokus Browser Extension — Background Service Worker
+// Odacla Browser Extension — Background Service Worker
 // =============================================================================
 //
 // This extension solves a critical limitation of desktop-only tracking:
@@ -9,7 +9,7 @@
 // HOW IT WORKS:
 // 1. The extension listens for tab activation and URL changes
 // 2. When the active tab changes, it reads the tab's URL and title
-// 3. It sends this information to the Fokus desktop app
+// 3. It sends this information to the Odacla desktop app
 //
 // COMMUNICATION WITH THE DESKTOP APP:
 // We use Chrome's Native Messaging API. This creates a direct communication
@@ -31,14 +31,14 @@
 // - The data stays entirely local (Fokus doesn't phone home)
 // =============================================================================
 
-const NATIVE_HOST_NAME = "com.fokus.browser_bridge";
+const NATIVE_HOST_NAME = "com.odacla.browser_bridge";
 const POLL_INTERVAL_MS = 5000; // Match the desktop polling interval
 
 // Port for native messaging communication with the desktop app
 let nativePort = null;
 
 // ─── Connect to the Native Messaging Host ───────────────────────────────────
-// This establishes a persistent connection to the Fokus desktop app.
+// This establishes a persistent connection to the Odacla desktop app.
 // If the connection fails (e.g., app not running), we retry periodically.
 
 function connectToNativeHost() {
@@ -47,20 +47,20 @@ function connectToNativeHost() {
 
     nativePort.onMessage.addListener((message) => {
       // The desktop app can send messages back (e.g., configuration updates)
-      console.log("[Fokus] Received from desktop:", message);
+      console.log("[Odacla] Received from desktop:", message);
     });
 
     nativePort.onDisconnect.addListener(() => {
-      console.log("[Fokus] Disconnected from desktop app. Retrying in 10s...");
+      console.log("[Odacla] Disconnected from desktop app. Retrying in 10s...");
       nativePort = null;
       // Retry connection after a delay
       setTimeout(connectToNativeHost, 10000);
     });
 
-    console.log("[Fokus] Connected to desktop app via native messaging");
+    console.log("[Odacla] Connected to desktop app via native messaging");
   } catch (error) {
-    console.warn("[Fokus] Native messaging not available:", error);
-    console.log("[Fokus] Falling back to localhost HTTP communication");
+    console.warn("[Odacla] Native messaging not available:", error);
+    console.log("[Odacla] Falling back to localhost HTTP communication");
     nativePort = null;
   }
 }
@@ -80,7 +80,7 @@ function sendActivity(url, title) {
     try {
       nativePort.postMessage(message);
     } catch (error) {
-      console.warn("[Fokus] Failed to send via native messaging:", error);
+      console.warn("[Odacla] Failed to send via native messaging:", error);
     }
   } else {
     // Fallback: HTTP to localhost
@@ -106,7 +106,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     }
   } catch (error) {
     // Tab might have closed between the event and our query
-    console.debug("[Fokus] Tab no longer available:", error);
+    console.debug("[Odacla] Tab no longer available:", error);
   }
 });
 
@@ -131,7 +131,7 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
       sendActivity(tab.url, tab.title || "");
     }
   } catch (error) {
-    console.debug("[Fokus] Could not query active tab:", error);
+    console.debug("[Odacla] Could not query active tab:", error);
   }
 });
 
@@ -156,4 +156,4 @@ setInterval(async () => {
 
 // ─── Initialize ─────────────────────────────────────────────────────────────
 connectToNativeHost();
-console.log("[Fokus] Browser extension initialized");
+console.log("[Odacla] Browser extension initialized");

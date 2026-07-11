@@ -1,8 +1,8 @@
-# Fokus Architecture
+# Odacla Architecture
 
 ## Overview
 
-Fokus is a lightweight, privacy-first desktop time tracker built with Rust + Tauri + Svelte + SQLite. It silently monitors which applications and websites you use, classifies them into categories, and presents analytics through a clean dashboard.
+Odacla is a lightweight, privacy-first desktop time tracker built with Rust + Tauri + Svelte + SQLite. It silently monitors which applications and websites you use, classifies them into categories, and presents analytics through a clean dashboard.
 
 ## System Architecture
 
@@ -23,7 +23,7 @@ Fokus is a lightweight, privacy-first desktop time tracker built with Rust + Tau
     └────┬────┘  └──────────┘  └───┬──────┘
          │                         │
     ┌────▼───────────────┐   ┌─────▼─────┐
-    │ Platform (trait)   │   │ fokus.db  │
+    │ Platform (trait)   │   │ odacla.db  │
     ├────────────────────┤   └───────────┘
     │ Windows: Win32 API │
     │ Linux:   X11/XCB   │
@@ -82,4 +82,4 @@ To add a new platform, create `crates/platform-<os>/` implementing the trait, ad
 
 ### macOS notes
 
-Window titles come from `kCGWindowName`, which requires the Screen Recording permission. Without it, Fokus falls back to the application name, so app-level tracking still works. Idle time uses `CGEventSourceSecondsSinceLastEventType` (no permission required).
+Window titles come from `kCGWindowName`, which requires the Screen Recording permission. Without it, Odacla falls back to the application name, so app-level tracking still works. Idle time uses `CGEventSourceSecondsSinceLastEventType` (no permission required).

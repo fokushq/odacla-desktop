@@ -117,13 +117,13 @@
   // Running apps (live) — primary picker, shown first with green chips
   $: runningAvailableForWhitelist = settings
     ? runningApps.filter(
-        (a) => !isInWhitelist(a) && !a.toLowerCase().includes("fokus")
+        (a) => !isInWhitelist(a) && !a.toLowerCase().includes("odacla") && !a.toLowerCase().includes("fokus")
       )
     : [];
 
   $: runningAvailableForExclude = settings
     ? runningApps.filter(
-        (a) => !isInExcludeList(a) && !a.toLowerCase().includes("fokus")
+        (a) => !isInExcludeList(a) && !a.toLowerCase().includes("odacla") && !a.toLowerCase().includes("fokus")
       )
     : [];
 
@@ -132,6 +132,7 @@
     ? detectedApps.filter(
         (a) =>
           !isInWhitelist(a) &&
+          !a.toLowerCase().includes("odacla") &&
           !a.toLowerCase().includes("fokus") &&
           !runningAvailableForWhitelist.includes(a)
       )
@@ -141,6 +142,7 @@
     ? detectedApps.filter(
         (a) =>
           !isInExcludeList(a) &&
+          !a.toLowerCase().includes("odacla") &&
           !a.toLowerCase().includes("fokus") &&
           !runningAvailableForExclude.includes(a)
       )

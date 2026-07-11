@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Fokus Browser Tracker",
-  "description": "Reports the active tab URL and title to the Fokus desktop app for accurate time tracking.",
+  "name": "Odacla Browser Tracker",
+  "description": "Reports the active tab URL and title to the Odacla desktop app for accurate time tracking.",
   "version": "0.1.0",
   "permissions": [
     "tabs",

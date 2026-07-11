@@ -215,7 +215,7 @@ pub fn save_settings(
 
 /// Get all currently visible application windows from the OS.
 /// Enumerates live top-level windows — not limited to the last-focused app.
-/// Returns deduplicated, sorted, Fokus-filtered names.
+/// Returns deduplicated, sorted names with Odacla itself filtered out.
 /// Powers the "Currently running" picker in Settings.
 #[tauri::command]
 pub fn get_running_apps() -> Result<Vec<String>, String> {
@@ -226,7 +226,10 @@ pub fn get_running_apps() -> Result<Vec<String>, String> {
     let mut apps: Vec<String> = windows
         .into_iter()
         .map(|w| w.app_name)
-        .filter(|n| !n.to_lowercase().contains("fokus"))
+        .filter(|n| {
+            let lower = n.to_lowercase();
+            !lower.contains("odacla") && !lower.contains("fokus")
+        })
         .filter(|n| seen.insert(n.clone()))
         .collect();
 
