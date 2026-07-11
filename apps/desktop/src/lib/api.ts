@@ -37,16 +37,29 @@ function localToday(): string {
   return `${y}-${m}-${d}`;
 }
 
-// ─── Session Queries ────────────────────────────────────────────────────────
-
-/** Fetch all sessions for today (using local date) */
-export async function getTodaySessions(): Promise<Session[]> {
-  return invoke<Session[]>("get_today_sessions", { date: localToday() });
+/** Convert a local YYYY-MM-DD day into an absolute UTC datetime range
+ *  [local midnight, next local midnight). `new Date(y, m, d)` builds the
+ *  date in the local timezone; toISOString() then converts to UTC — so a
+ *  session started at 00:30 local (21:30 UTC the previous day for UTC+3)
+ *  still falls inside the right day. */
+function localDayRangeUtc(date: string): { start: string; end: string } {
+  const [y, m, d] = date.split("-").map(Number);
+  const start = new Date(y, m - 1, d);
+  const end = new Date(y, m - 1, d + 1);
+  return { start: start.toISOString(), end: end.toISOString() };
 }
 
-/** Fetch sessions for a specific date (YYYY-MM-DD format) */
+// ─── Session Queries ────────────────────────────────────────────────────────
+
+/** Fetch all sessions for today (the user's local day) */
+export async function getTodaySessions(): Promise<Session[]> {
+  return getSessionsForDate(localToday());
+}
+
+/** Fetch sessions for a specific local date (YYYY-MM-DD format) */
 export async function getSessionsForDate(date: string): Promise<Session[]> {
-  return invoke<Session[]>("get_sessions_for_date", { date });
+  const { start, end } = localDayRangeUtc(date);
+  return invoke<Session[]>("get_sessions_in_range", { start, end });
 }
 
 /** Fetch the currently active (unclosed) session */

@@ -1,6 +1,6 @@
 //! Tauri commands — Bridge between Rust backend and Svelte UI.
 
-use chrono::{NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use tauri::State;
 use uuid::Uuid;
 
@@ -19,25 +19,20 @@ use fokus_platform_macos::MacosActivityDetector as PlatformDetector;
 
 use crate::state::AppState;
 
-/// Get all sessions for today or a specific date.
+/// Get sessions within an absolute UTC datetime range.
+/// The frontend computes the range from *local* midnight boundaries, so
+/// "today" means the user's local day — not the UTC day. (A user at UTC+3
+/// would otherwise lose sessions started between 00:00 and 03:00.)
 #[tauri::command]
-pub fn get_today_sessions(date: Option<String>, state: State<AppState>) -> Result<Vec<Session>, String> {
-    let today = match date {
-        Some(d) => NaiveDate::parse_from_str(&d, "%Y-%m-%d")
-            .map_err(|e| format!("Invalid date format: {}", e))?,
-        None => Utc::now().date_naive(),
-    };
+pub fn get_sessions_in_range(start: String, end: String, state: State<AppState>) -> Result<Vec<Session>, String> {
+    let start_dt = DateTime::parse_from_rfc3339(&start)
+        .map_err(|e| format!("Invalid start datetime: {}", e))?
+        .with_timezone(&Utc);
+    let end_dt = DateTime::parse_from_rfc3339(&end)
+        .map_err(|e| format!("Invalid end datetime: {}", e))?
+        .with_timezone(&Utc);
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.get_sessions_for_date(today).map_err(|e| e.to_string())
-}
-
-/// Get sessions for a specific date (for browsing history).
-#[tauri::command]
-pub fn get_sessions_for_date(date: String, state: State<AppState>) -> Result<Vec<Session>, String> {
-    let parsed_date = NaiveDate::parse_from_str(&date, "%Y-%m-%d")
-        .map_err(|e| format!("Invalid date format: {}", e))?;
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.get_sessions_for_date(parsed_date)
+    db.get_sessions_in_range(start_dt, end_dt)
         .map_err(|e| e.to_string())
 }
 

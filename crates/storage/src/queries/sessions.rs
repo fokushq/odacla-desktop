@@ -1,6 +1,6 @@
 //! Session queries.
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use fokus_domain::{Category, Session};
@@ -62,35 +62,8 @@ impl Database {
         Ok(())
     }
 
-    /// Get all sessions for a specific date.
-    pub fn get_sessions_for_date(
-        &self,
-        date: NaiveDate,
-    ) -> Result<Vec<Session>, StorageError> {
-        let date_prefix = date.format("%Y-%m-%d").to_string();
-        let next_date = date.succ_opt().unwrap_or(date);
-        let next_prefix = next_date.format("%Y-%m-%d").to_string();
-
-        let mut stmt = self.conn.prepare(
-            r#"SELECT id, start_time, end_time, app_name, window_title,
-                      category, url, activity_count, idle_seconds_total
-               FROM sessions
-               WHERE start_time >= ?1 AND start_time < ?2
-               ORDER BY start_time ASC"#,
-        )?;
-
-        let sessions = stmt
-            .query_map(rusqlite::params![date_prefix, next_prefix], |row| {
-                Ok(Self::row_to_session(row))
-            })?
-            .filter_map(|r| r.ok())
-            .filter_map(|r| r.ok())
-            .collect();
-
-        Ok(sessions)
-    }
-
-    /// Get sessions within a date range (for weekly/monthly reports).
+    /// Get sessions within an absolute UTC datetime range.
+    /// Callers derive day boundaries in the user's local timezone.
     pub fn get_sessions_in_range(
         &self,
         start: DateTime<Utc>,

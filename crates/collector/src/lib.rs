@@ -245,7 +245,7 @@ impl Collector {
                 let current_secs = session.duration().num_seconds();
                 let delta = current_secs - self.last_rollup_seconds;
                 if delta > 0 {
-                    let date = session.start_time.date_naive();
+                    let date = session.start_time.with_timezone(&chrono::Local).date_naive();
                     if let Err(e) = db.upsert_daily_rollup_seconds(date, &session.category, delta) {
                         error!("Failed to update rollup during flush: {}", e);
                     }
@@ -274,7 +274,7 @@ impl Collector {
                     }
 
                     let remaining = duration_secs - self.last_rollup_seconds;
-                    let date = session.start_time.date_naive();
+                    let date = session.start_time.with_timezone(&chrono::Local).date_naive();
                     if remaining > 0 {
                         if let Err(e) = db.upsert_daily_rollup_seconds(date, &category, remaining) {
                             error!("Failed to update daily rollup: {}", e);
@@ -298,7 +298,7 @@ impl Collector {
                 if let Ok(db) = self.db.lock() {
                     let _ = db.delete_session(&session.id);
                     if self.last_rollup_seconds > 0 {
-                        let date = session.start_time.date_naive();
+                        let date = session.start_time.with_timezone(&chrono::Local).date_naive();
                         if let Err(e) = db.upsert_daily_rollup_seconds(
                             date,
                             &category,

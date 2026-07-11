@@ -202,9 +202,8 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::get_today_sessions,
+            commands::get_sessions_in_range,
             commands::get_today_rollups,
-            commands::get_sessions_for_date,
             commands::get_rollups_for_date,
             commands::get_rollups_in_range,
             commands::get_all_rules,
