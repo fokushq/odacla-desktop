@@ -171,18 +171,18 @@ impl Collector {
         };
 
         // Step 8: Update session state
-        self.update_session(activity, category);
+        self.update_session(activity, category, settings.polling_interval_secs);
     }
 
     /// Update the session state based on the new activity.
-    fn update_session(&mut self, activity: Activity, category: Category) {
+    fn update_session(&mut self, activity: Activity, category: Category, poll_interval_secs: u32) {
         match &mut self.current_session {
             Some(session) => {
                 let same_app = session.app_name == activity.app_name;
                 let same_category = session.category == category;
 
                 if same_app && same_category && !activity.is_idle {
-                    session.extend(activity.window_title, activity.idle_seconds, activity.is_idle);
+                    session.extend(activity.window_title, activity.idle_seconds, poll_interval_secs);
                     trace!(app = %session.app_name, polls = session.activity_count, "Extended");
                 } else {
                     debug!(

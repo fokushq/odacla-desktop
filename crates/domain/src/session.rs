@@ -65,14 +65,16 @@ impl Session {
     /// Extend this session with a new activity observation.
     /// Updates the window title (to the latest), increments the count,
     /// and accumulates idle time.
-    pub fn extend(&mut self, window_title: String, idle_seconds: u32, is_idle: bool) {
+    ///
+    /// Idle accounting: at each poll the user has been inactive for
+    /// `idle_seconds`. Of the window since the previous poll
+    /// (`poll_interval_secs` long), exactly `min(idle_seconds, interval)`
+    /// seconds were idle — summing that per poll captures brief pauses
+    /// (below the idle threshold) without double counting.
+    pub fn extend(&mut self, window_title: String, idle_seconds: u32, poll_interval_secs: u32) {
         self.window_title = window_title;
         self.activity_count += 1;
-        if is_idle {
-            // Add the polling interval worth of idle time
-            // (typically 5 seconds between polls)
-            self.idle_seconds_total += idle_seconds.min(10);
-        }
+        self.idle_seconds_total += idle_seconds.min(poll_interval_secs);
     }
 
     /// Calculate the total duration of this session.
@@ -110,5 +112,46 @@ impl Session {
         } else {
             format!("{}m", minutes)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_session() -> Session {
+        Session::start(
+            "Code".to_string(),
+            "main.rs".to_string(),
+            Category::Coding,
+            None,
+        )
+    }
+
+    #[test]
+    fn extend_updates_title_and_count() {
+        let mut session = make_session();
+        session.extend("lib.rs".to_string(), 0, 5);
+        assert_eq!(session.window_title, "lib.rs");
+        assert_eq!(session.activity_count, 2);
+        assert_eq!(session.idle_seconds_total, 0);
+    }
+
+    #[test]
+    fn extend_accumulates_brief_idle_pauses() {
+        let mut session = make_session();
+        // User paused for 3s within a 5s poll window → 3s idle
+        session.extend("main.rs".to_string(), 3, 5);
+        assert_eq!(session.idle_seconds_total, 3);
+        // Still idle at the next poll (8s total) → the whole 5s window was idle
+        session.extend("main.rs".to_string(), 8, 5);
+        assert_eq!(session.idle_seconds_total, 8);
+    }
+
+    #[test]
+    fn active_duration_subtracts_idle_and_never_goes_negative() {
+        let mut session = make_session();
+        session.idle_seconds_total = 3600; // more idle than elapsed time
+        assert_eq!(session.active_duration(), Duration::zero());
     }
 }

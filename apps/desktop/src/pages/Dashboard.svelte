@@ -279,7 +279,7 @@
         </div>
         <div class="chart-legend">
           <span class="leg"><span class="dot prod-dot"></span> Productive <span class="leg-detail">(Coding, Study, etc.)</span></span>
-          <span class="leg"><span class="dot other-dot"></span> Other <span class="leg-detail">(Idle, Entertainment)</span></span>
+          <span class="leg"><span class="dot other-dot"></span> Other <span class="leg-detail">(Entertainment, Uncategorized)</span></span>
         </div>
       </div>
 
