@@ -7,3 +7,6 @@ pub mod queries;
 
 pub use database::Database;
 pub use error::StorageError;
+
+#[cfg(test)]
+mod tests;
