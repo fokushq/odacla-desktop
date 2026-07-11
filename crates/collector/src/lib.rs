@@ -3,7 +3,6 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use chrono::Utc;
 use tokio::sync::watch;
 use tracing::{debug, error, info, trace, warn};
 
@@ -17,6 +16,9 @@ use fokus_platform_windows::WindowsActivityDetector as PlatformDetector;
 
 #[cfg(target_os = "linux")]
 use fokus_platform_linux::LinuxActivityDetector as PlatformDetector;
+
+#[cfg(target_os = "macos")]
+use fokus_platform_macos::MacosActivityDetector as PlatformDetector;
 
 /// The background collector service.
 pub struct Collector {

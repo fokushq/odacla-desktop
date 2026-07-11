@@ -12,6 +12,7 @@
 <p align="center">
   <img alt="Platform: Windows" src="https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white" />
   <img alt="Platform: Linux" src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" />
+  <img alt="Platform: macOS" src="https://img.shields.io/badge/platform-macOS-000000?logo=apple&logoColor=white" />
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green" />
   <img alt="Rust" src="https://img.shields.io/badge/rust-stable-orange?logo=rust" />
   <img alt="Tauri 2" src="https://img.shields.io/badge/tauri-v2-24C8D8?logo=tauri&logoColor=white" />
@@ -30,7 +31,7 @@ Fokus silently monitors which applications you use, classifies them into categor
 - **Rule-based classification** — Flexible pattern-matching rules with priorities.
 - **Include/Exclude tracking** — Whitelist or blacklist mode for full control.
 - **Self-exclusion** — Fokus never tracks itself.
-- **Cross-platform** — Runs on Windows and Linux (X11) with a shared core and platform-specific detection layers.
+- **Cross-platform** — Runs on Windows, Linux (X11), and macOS with a shared core and platform-specific detection layers.
 
 ## Screenshots
 
@@ -58,6 +59,12 @@ Fokus silently monitors which applications you use, classifies them into categor
 |------|---------|
 | System libraries | `sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libxss-dev` |
 | X11 dev headers | Included via `libxss-dev` / `libxcb1-dev` (needed for idle detection) |
+
+**macOS only:**
+
+| Tool | Install |
+|------|---------|
+| Xcode Command Line Tools | `xcode-select --install` |
 
 ### Run in development
 
@@ -106,6 +113,7 @@ fokus/
 │   ├── platform/                # Shared trait (ActivityDetector) + types
 │   ├── platform-windows/        # Win32 API — active window + idle detection
 │   ├── platform-linux/          # X11/XCB — active window + idle detection
+│   ├── platform-macos/          # CoreGraphics — active window + idle detection
 │   └── sync-contracts/          # (Future) shared types for cloud sync
 │
 ├── Cargo.toml                   # Workspace root
@@ -134,6 +142,7 @@ fokus/
    ├────────────────────┤
    │ Windows: Win32 API │
    │ Linux:   X11/XCB   │
+   │ macOS:   Quartz/CG │
    └────────────────────┘
 ```
 
@@ -141,7 +150,7 @@ Each crate has a single responsibility and compiles independently. The shared `p
 
 ## How It Works
 
-1. **Collect** — Every 5 seconds, the collector polls the active window via platform APIs (Win32 on Windows, X11/XCB on Linux).
+1. **Collect** — Every 5 seconds, the collector polls the active window via platform APIs (Win32 on Windows, X11/XCB on Linux, CoreGraphics on macOS).
 2. **Classify** — The activity is matched against user-defined rules (pattern + priority → category).
 3. **Session** — Consecutive activities with the same app/category merge into time sessions.
 4. **Persist** — Sessions and daily rollups are written to SQLite for fast queries.
@@ -154,7 +163,12 @@ Each crate has a single responsibility and compiles independently. The shared `p
 | Windows 10/11 | Fully supported | Win32 APIs (`GetForegroundWindow`, `GetLastInputInfo`, `EnumWindows`) |
 | Linux (X11) | Supported | XCB via `x11rb` (`_NET_ACTIVE_WINDOW`, XScreenSaver, `/proc`) |
 | Linux (Wayland) | Not yet supported | Wayland lacks a standard API for window enumeration |
-| macOS | Not yet supported | Would need `NSWorkspace` / Accessibility APIs |
+| macOS | Supported | CoreGraphics (`CGWindowListCopyWindowInfo`, `CGEventSourceSecondsSinceLastEventType`, `proc_pidpath`) |
+
+> **macOS note:** window *titles* require the Screen Recording permission
+> (System Settings → Privacy & Security → Screen Recording). Without it,
+> Fokus still tracks the active application name — title-based rules simply
+> fall back to the app name.
 
 ## Privacy
 
@@ -166,6 +180,7 @@ Fokus is designed to be completely offline:
 - **Delete anytime** — remove the database file and you're clean.
   - Windows: `%APPDATA%/com.fokus.app/fokus.db`
   - Linux: `~/.local/share/com.fokus.app/fokus.db`
+  - macOS: `~/Library/Application Support/com.fokus.app/fokus.db`
 
 See [docs/privacy.md](docs/privacy.md) for full details.
 

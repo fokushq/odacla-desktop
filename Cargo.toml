@@ -10,6 +10,7 @@ members = [
     "crates/platform",
     "crates/platform-windows",
     "crates/platform-linux",
+    "crates/platform-macos",
     "apps/desktop/src-tauri",
 ]
 

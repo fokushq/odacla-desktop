@@ -14,6 +14,9 @@ use fokus_platform_windows::WindowsActivityDetector as PlatformDetector;
 #[cfg(target_os = "linux")]
 use fokus_platform_linux::LinuxActivityDetector as PlatformDetector;
 
+#[cfg(target_os = "macos")]
+use fokus_platform_macos::MacosActivityDetector as PlatformDetector;
+
 use crate::state::AppState;
 
 /// Get all sessions for today or a specific date.

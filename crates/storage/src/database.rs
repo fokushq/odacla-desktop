@@ -2,7 +2,7 @@
 
 use rusqlite::Connection;
 use std::path::Path;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::error::StorageError;
 use crate::schema;

@@ -823,6 +823,7 @@ dependencies = [
  "fokus-domain",
  "fokus-platform",
  "fokus-platform-linux",
+ "fokus-platform-macos",
  "fokus-platform-windows",
  "fokus-storage",
  "thiserror 1.0.69",
@@ -840,6 +841,7 @@ dependencies = [
  "fokus-domain",
  "fokus-platform",
  "fokus-platform-linux",
+ "fokus-platform-macos",
  "fokus-platform-windows",
  "fokus-storage",
  "serde",
@@ -876,6 +878,15 @@ dependencies = [
  "fokus-platform",
  "tracing",
  "x11rb",
+]
+
+[[package]]
+name = "fokus-platform-macos"
+version = "0.1.0"
+dependencies = [
+ "core-foundation",
+ "fokus-platform",
+ "tracing",
 ]
 
 [[package]]
