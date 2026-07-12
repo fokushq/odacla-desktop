@@ -1,8 +1,14 @@
 [package]
-name = "fokus-desktop"
+name = "odacla-desktop"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+
+# The binary is named "Odacla" so the process (and the macOS Dock in dev
+# runs) shows the product name instead of the crate name.
+[[bin]]
+name = "Odacla"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

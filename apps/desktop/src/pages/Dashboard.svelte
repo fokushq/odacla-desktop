@@ -236,7 +236,13 @@
   </header>
 
   {#if loading}
-    <div class="loading-state"><p>Loading your activity data...</p></div>
+    <div class="skeleton-page">
+      <div class="skeleton" style="height: 118px;"></div>
+      <div class="skeleton-row">
+        <div class="skeleton" style="height: 320px;"></div>
+        <div class="skeleton" style="height: 320px;"></div>
+      </div>
+    </div>
   {:else if error}
     <div class="error-state"><p>Failed to load: {error}</p><button on:click={fetchData}>Retry</button></div>
   {:else}
@@ -288,7 +294,7 @@
               <div class="bar-col">
                 <button
                   class="bar-stack"
-                  title="{formatDuration(day.productive + day.other)} — click for details"
+                  data-tooltip={`${formatDuration(day.productive + day.other)}\nProductive ${formatDuration(day.productive)} · Other ${formatDuration(day.other)}\nClick for details`}
                   aria-label="Open timeline for {day.day}"
                   on:click={() => openTimelineForDate(day.date)}
                 >
@@ -461,7 +467,10 @@
   .mini-time { color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
   .mini-dur { font-weight: 600; color: var(--text-2); min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
 
-  .loading-state, .error-state { text-align: center; padding: 60px 20px; color: var(--text-3); }
+  .skeleton-page { display: flex; flex-direction: column; gap: 16px; }
+  .skeleton-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  .error-state { text-align: center; padding: 60px 20px; color: var(--text-3); }
   .error-state button {
     margin-top: 12px; padding: 8px 20px; background: var(--accent); color: white;
     border: none; border-radius: var(--radius-sm); cursor: pointer; font-family: inherit;

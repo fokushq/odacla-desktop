@@ -14,12 +14,18 @@
 -->
 
 <script lang="ts">
+  import { fade } from "svelte/transition";
   import Dashboard from "./pages/Dashboard.svelte";
   import Timeline from "./pages/Timeline.svelte";
   import Reports from "./pages/Reports.svelte";
   import Rules from "./pages/Rules.svelte";
   import SettingsPage from "./pages/Settings.svelte";
   import { currentPage } from "./stores/navigation";
+
+  // macOS uses an overlay title bar (traffic lights float over our UI),
+  // so the sidebar needs top clearance and a drag strip. Other platforms
+  // keep their native title bar — no adjustment needed.
+  const isMac = navigator.userAgent.includes("Mac");
 
   // Inline stroke icons (24×24, lucide-style). Static strings — safe for {@html}.
   const navItems = [
@@ -51,7 +57,13 @@
   ];
 </script>
 
-<div class="app-container">
+<div class="app-container" class:macos={isMac}>
+  {#if isMac}
+    <!-- Invisible strip along the top edge: window dragging, like a
+         native title bar. Sits above content but below nothing clickable. -->
+    <div class="drag-strip" data-tauri-drag-region></div>
+  {/if}
+
   <!-- ─── Sidebar ────────────────────────────────────────────────── -->
   <nav class="sidebar">
     <div class="sidebar-header">
@@ -107,17 +119,21 @@
 
   <!-- ─── Main Content ───────────────────────────────────────────── -->
   <main class="main-content">
-    {#if $currentPage === "dashboard"}
-      <Dashboard />
-    {:else if $currentPage === "timeline"}
-      <Timeline />
-    {:else if $currentPage === "reports"}
-      <Reports />
-    {:else if $currentPage === "rules"}
-      <Rules />
-    {:else if $currentPage === "settings"}
-      <SettingsPage />
-    {/if}
+    {#key $currentPage}
+      <div class="page" in:fade={{ duration: 140 }}>
+        {#if $currentPage === "dashboard"}
+          <Dashboard />
+        {:else if $currentPage === "timeline"}
+          <Timeline />
+        {:else if $currentPage === "reports"}
+          <Reports />
+        {:else if $currentPage === "rules"}
+          <Rules />
+        {:else if $currentPage === "settings"}
+          <SettingsPage />
+        {/if}
+      </div>
+    {/key}
   </main>
 </div>
 
@@ -161,6 +177,10 @@
 
     /* Motion */
     --transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Tooltip (inverted surface) */
+    --tooltip-bg: #1d1d1f;
+    --tooltip-text: #f5f5f7;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -190,6 +210,9 @@
 
       --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px -8px rgba(0, 0, 0, 0.4);
       --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.35), 0 12px 32px -12px rgba(0, 0, 0, 0.5);
+
+      --tooltip-bg: #f5f5f7;
+      --tooltip-text: #1d1d1f;
     }
   }
 
@@ -232,11 +255,72 @@
     background: transparent;
   }
 
+  /* ═══ Shared: CSS tooltips ══════════════════════════════════════ */
+  /* Any element with a data-tooltip attribute grows a themed tooltip
+     above it on hover. Used by the chart bars. */
+  :global([data-tooltip]) {
+    position: relative;
+  }
+
+  :global([data-tooltip]:hover::after) {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--tooltip-bg);
+    color: var(--tooltip-text);
+    padding: 6px 11px;
+    border-radius: 7px;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.45;
+    white-space: pre-line;
+    text-align: center;
+    pointer-events: none;
+    z-index: 30;
+    box-shadow: var(--shadow-md);
+    min-width: max-content;
+  }
+
+  /* ═══ Shared: skeleton loaders ══════════════════════════════════ */
+  :global(.skeleton) {
+    background: linear-gradient(
+      90deg,
+      var(--surface-2) 25%,
+      var(--surface-3) 50%,
+      var(--surface-2) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+  }
+
+  @keyframes -global-shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+
   /* ═══ Layout ════════════════════════════════════════════════════ */
   .app-container {
     display: flex;
     height: 100vh;
     overflow: hidden;
+  }
+
+  /* ═══ macOS overlay title bar ═══════════════════════════════════ */
+  .drag-strip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    z-index: 40;
+  }
+
+  /* Clear the traffic lights that float over the sidebar's top edge */
+  .macos .sidebar {
+    padding-top: 46px;
   }
 
   /* ═══ Sidebar ═══════════════════════════════════════════════════ */

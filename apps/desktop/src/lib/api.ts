@@ -67,7 +67,7 @@ export async function getActiveSession(): Promise<Session | null> {
   return invoke<Session | null>("get_active_session");
 }
 
-/** Fetch distinct app names that Fokus has seen, sorted by usage.
+/** Fetch distinct app names that Odacla has seen, sorted by usage.
  *  Used in Settings to show detected apps for the whitelist selector. */
 export async function getDetectedApps(): Promise<string[]> {
   return invoke<string[]>("get_detected_apps");
@@ -75,7 +75,7 @@ export async function getDetectedApps(): Promise<string[]> {
 
 /** Fetch all currently visible top-level application windows from the OS.
  *  Uses EnumWindows — returns live running apps, not just historically tracked ones.
- *  Names are normalized (e.g. pycharm64 → PyCharm). Fokus itself is filtered out. */
+ *  Names are normalized (e.g. pycharm64 → PyCharm). Odacla itself is filtered out. */
 export async function getRunningApps(): Promise<string[]> {
   return invoke<string[]>("get_running_apps");
 }

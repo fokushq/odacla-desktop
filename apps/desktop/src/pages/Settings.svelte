@@ -2,7 +2,7 @@
   =============================================================================
   Settings.svelte — Application configuration page
   =============================================================================
-  Lets users customize how Fokus behaves: tracking mode (exclude vs whitelist),
+  Lets users customize how Odacla behaves: tracking mode (exclude vs whitelist),
   polling interval, idle timeout, app lists, and other preferences.
   Changes are saved to SQLite + hot-reloaded into the running collector.
   =============================================================================
@@ -157,13 +157,17 @@
   </header>
 
   {#if loading}
-    <p class="loading-state">Loading settings...</p>
+    <div class="skeleton-list">
+      <div class="skeleton" style="height: 180px;"></div>
+      <div class="skeleton" style="height: 280px;"></div>
+      <div class="skeleton" style="height: 200px;"></div>
+    </div>
   {:else if settings}
     <!-- ─── Tracking Mode ───────────────────────────────────────── -->
     <div class="card">
       <h3 class="card-title">Tracking Mode</h3>
       <p class="card-desc">
-        Choose how Fokus decides which applications to track.
+        Choose how Odacla decides which applications to track.
       </p>
 
       <div class="mode-selector">
@@ -324,7 +328,7 @@
       <div class="settings-grid">
         <div class="setting-item">
           <label for="polling">Polling Interval (seconds)</label>
-          <p class="setting-desc">How often Fokus checks the active window. Lower is more precise but uses slightly more CPU.</p>
+          <p class="setting-desc">How often Odacla checks the active window. Lower is more precise but uses slightly more CPU.</p>
           <input
             id="polling"
             type="number"
@@ -370,7 +374,7 @@
         </label>
         <label class="toggle-item">
           <input type="checkbox" bind:checked={settings.start_on_boot} />
-          <span>Start Fokus on system startup</span>
+          <span>Start Odacla on system startup</span>
         </label>
         <label class="toggle-item">
           <input type="checkbox" bind:checked={settings.show_tray_icon} />
@@ -707,9 +711,9 @@
     color: white;
   }
 
-  .loading-state {
-    text-align: center;
-    padding: 40px;
-    color: var(--text-3);
+  .skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 </style>

@@ -21,6 +21,7 @@
     formatTime,
   } from "$lib/types";
   import { consumeTimelineDate } from "../stores/navigation";
+  import EmptyState from "../components/EmptyState.svelte";
 
   let sessions: Session[] = [];
   /** Use local date — toISOString() returns UTC which can be wrong near midnight.
@@ -110,11 +111,17 @@
   </header>
 
   {#if loading}
-    <p class="loading-state">Loading sessions...</p>
-  {:else if sessions.length === 0}
-    <div class="empty-state">
-      <p>No sessions recorded for this date</p>
+    <div class="skeleton-list">
+      <div class="skeleton" style="height: 140px;"></div>
+      <div class="skeleton" style="height: 76px;"></div>
+      <div class="skeleton" style="height: 76px;"></div>
+      <div class="skeleton" style="height: 76px;"></div>
     </div>
+  {:else if sessions.length === 0}
+    <EmptyState
+      title="No sessions recorded for this date"
+      hint="Pick another day, or keep using your computer — Odacla is tracking in the background."
+    />
   {:else}
     <!-- ─── Per-App Summary ────────────────────────────────────── -->
     <div class="summary-card">
@@ -388,10 +395,9 @@
     text-overflow: ellipsis;
   }
 
-  .loading-state,
-  .empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--text-3);
+  .skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 </style>

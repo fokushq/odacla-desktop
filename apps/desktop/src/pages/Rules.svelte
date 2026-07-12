@@ -3,7 +3,7 @@
   Rules.svelte — Manage classification rules
   =============================================================================
   This page lets users view, create, edit, and delete classification rules.
-  Rules define how Fokus categorizes activities:
+  Rules define how Odacla categorizes activities:
     "If the app/URL/title contains X → classify as Y"
 
   Users can fine-tune their tracking by adding rules like:
@@ -214,7 +214,7 @@
 
   <!-- ─── Rules Table ────────────────────────────────────────── -->
   {#if loading}
-    <p class="loading-state">Loading rules...</p>
+    <div class="skeleton" style="height: 420px;"></div>
   {:else}
     <div class="card">
       <table class="rules-table">
@@ -595,9 +595,4 @@
     background: var(--surface-2);
   }
 
-  .loading-state {
-    text-align: center;
-    padding: 40px;
-    color: var(--text-3);
-  }
 </style>

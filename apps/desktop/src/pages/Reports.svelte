@@ -213,7 +213,10 @@
   </header>
 
   {#if loading}
-    <p class="loading-state">Loading reports...</p>
+    <div class="skeleton-list">
+      <div class="skeleton" style="height: 320px;"></div>
+      <div class="skeleton" style="height: 240px;"></div>
+    </div>
   {:else if viewMode === "weekly"}
     <!-- ─── Weekly Bar Chart ───────────────────────────────────── -->
     <div class="card">
@@ -230,7 +233,10 @@
             {@const prodPct = maxWeekTotal > 0 ? (week.productive / maxWeekTotal) * 100 : 0}
             {@const otherPct = maxWeekTotal > 0 ? (week.other / maxWeekTotal) * 100 : 0}
             <div class="bar-col">
-              <div class="bar-stack" title="{formatDuration(week.total)}">
+              <div
+                class="bar-stack week-bar"
+                data-tooltip={`${week.label}\n${formatDuration(week.total)} total · ${formatDuration(week.productive)} productive`}
+              >
                 <div class="bar-seg prod" style="height: {prodPct}%"></div>
                 <div class="bar-seg other" style="height: {otherPct}%"></div>
               </div>
@@ -292,7 +298,7 @@
             <div class="bar-col">
               <button
                 class="bar-stack"
-                title="{day.label}: {formatDuration(day.total)} — click for details"
+                data-tooltip={`${day.label}\n${formatDuration(day.total)} total · ${formatDuration(day.productive)} productive\nClick for details`}
                 aria-label="Open timeline for {day.label}"
                 on:click={() => openTimelineForDate(day.date)}
               >
@@ -404,5 +410,5 @@
   .cell-value { font-weight: 600; color: var(--text-1); }
   .cell-cat { color: var(--text-2); }
 
-  .loading-state { text-align: center; padding: 60px; color: var(--text-3); }
+  .skeleton-list { display: flex; flex-direction: column; gap: 16px; }
 </style>
