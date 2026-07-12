@@ -19,8 +19,7 @@
   import Reports from "./pages/Reports.svelte";
   import Rules from "./pages/Rules.svelte";
   import SettingsPage from "./pages/Settings.svelte";
-
-  let currentPage: "dashboard" | "timeline" | "reports" | "rules" | "settings" = "dashboard";
+  import { currentPage } from "./stores/navigation";
 
   // Inline stroke icons (24×24, lucide-style). Static strings — safe for {@html}.
   const navItems = [
@@ -80,8 +79,8 @@
         <li>
           <button
             class="nav-item"
-            class:active={currentPage === item.id}
-            on:click={() => (currentPage = item.id)}
+            class:active={$currentPage === item.id}
+            on:click={() => currentPage.set(item.id)}
           >
             <svg
               class="nav-icon"
@@ -108,15 +107,15 @@
 
   <!-- ─── Main Content ───────────────────────────────────────────── -->
   <main class="main-content">
-    {#if currentPage === "dashboard"}
+    {#if $currentPage === "dashboard"}
       <Dashboard />
-    {:else if currentPage === "timeline"}
+    {:else if $currentPage === "timeline"}
       <Timeline />
-    {:else if currentPage === "reports"}
+    {:else if $currentPage === "reports"}
       <Reports />
-    {:else if currentPage === "rules"}
+    {:else if $currentPage === "rules"}
       <Rules />
-    {:else if currentPage === "settings"}
+    {:else if $currentPage === "settings"}
       <SettingsPage />
     {/if}
   </main>

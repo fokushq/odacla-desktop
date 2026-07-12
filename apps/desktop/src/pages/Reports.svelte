@@ -13,6 +13,7 @@
   import { getRollupsInRange } from "$lib/api";
   import type { DailyRollup, Category } from "$lib/types";
   import { categoryColor, categoryName, formatDuration } from "$lib/types";
+  import { openTimelineForDate } from "../stores/navigation";
 
   // ─── State ────────────────────────────────────────────────────────
   let allRollups: DailyRollup[] = [];
@@ -289,10 +290,15 @@
             {@const prodPct = maxDayTotal > 0 ? (day.productive / maxDayTotal) * 100 : 0}
             {@const otherPct = maxDayTotal > 0 ? (day.other / maxDayTotal) * 100 : 0}
             <div class="bar-col">
-              <div class="bar-stack" title="{day.label}: {formatDuration(day.total)}">
+              <button
+                class="bar-stack"
+                title="{day.label}: {formatDuration(day.total)} — click for details"
+                aria-label="Open timeline for {day.label}"
+                on:click={() => openTimelineForDate(day.date)}
+              >
                 <div class="bar-seg prod" style="height: {prodPct}%"></div>
                 <div class="bar-seg other" style="height: {otherPct}%"></div>
-              </div>
+              </button>
               <span class="bar-day">{day.date.slice(5)}</span>
             </div>
           {/each}
@@ -371,7 +377,9 @@
     width: 100%; max-width: 56px; display: flex; flex-direction: column-reverse;
     border-radius: 5px 5px 0 0; overflow: hidden; cursor: pointer; flex: 1;
     transition: opacity var(--transition);
+    border: none; padding: 0; background: transparent; font-family: inherit;
   }
+  .bar-stack:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .bar-stack:hover { opacity: 0.75; }
   .bar-seg { transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
   .bar-seg.prod { background: var(--accent); }

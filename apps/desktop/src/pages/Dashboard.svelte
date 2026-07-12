@@ -26,6 +26,7 @@
     formatTime,
   } from "$lib/types";
   import CategoryChart from "../components/CategoryChart.svelte";
+  import { openTimelineForDate } from "../stores/navigation";
 
   // ─── State ────────────────────────────────────────────────────────
   // KEY DESIGN: Today's metrics come from SESSIONS (the source of truth),
@@ -131,7 +132,7 @@
   // ─── Daily bar chart data ─────────────────────────────────────────
   // For today: use session data. For other days: use rollups.
   $: dailyTotals = (() => {
-    const totals: { day: string; productive: number; other: number }[] = [];
+    const totals: { day: string; date: string; productive: number; other: number }[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(week.start);
       d.setDate(d.getDate() + i);
@@ -155,7 +156,7 @@
           .reduce((s, r) => s + r.total_seconds, 0);
       }
 
-      totals.push({ day: dayNames[i], productive, other });
+      totals.push({ day: dayNames[i], date: dateStr, productive, other });
     }
     return totals;
   })();
@@ -285,10 +286,15 @@
               {@const prodPct = maxDailySeconds > 0 ? (day.productive / maxDailySeconds) * 100 : 0}
               {@const otherPct = maxDailySeconds > 0 ? (day.other / maxDailySeconds) * 100 : 0}
               <div class="bar-col">
-                <div class="bar-stack" title="{formatDuration(day.productive + day.other)}">
+                <button
+                  class="bar-stack"
+                  title="{formatDuration(day.productive + day.other)} — click for details"
+                  aria-label="Open timeline for {day.day}"
+                  on:click={() => openTimelineForDate(day.date)}
+                >
                   <div class="bar-seg prod" style="height: {prodPct}%"></div>
                   <div class="bar-seg other" style="height: {otherPct}%"></div>
-                </div>
+                </button>
                 <span class="bar-day">{day.day}</span>
               </div>
             {/each}
@@ -420,7 +426,9 @@
     width: 100%; max-width: 44px; display: flex; flex-direction: column-reverse;
     border-radius: 5px 5px 0 0; overflow: hidden; cursor: pointer; flex: 1;
     transition: opacity var(--transition);
+    border: none; padding: 0; background: transparent; font-family: inherit;
   }
+  .bar-stack:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .bar-stack:hover { opacity: 0.75; }
   .bar-seg { transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
   .bar-seg.prod { background: var(--accent); }
