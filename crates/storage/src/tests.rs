@@ -34,6 +34,24 @@ fn fresh_db_seeds_default_rules_and_settings() {
 }
 
 #[test]
+fn rules_seed_version_is_current_and_v2_rules_present() {
+    let db = db();
+    let version: String = db
+        .conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'rules_seed_version'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(version, "2");
+
+    let rules = db.get_all_rules().unwrap();
+    assert!(rules.iter().any(|r| r.pattern == "safari"));
+    assert!(rules.iter().any(|r| r.pattern == "xcode"));
+}
+
+#[test]
 fn legacy_tables_are_dropped() {
     let db = db();
     let count: i64 = db

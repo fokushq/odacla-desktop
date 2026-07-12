@@ -57,7 +57,17 @@
   <nav class="sidebar">
     <div class="sidebar-header">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">O</div>
+        <!-- Mini version of the app icon: ring with a gap + orbit dot -->
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle
+              cx="12" cy="12" r="7.5"
+              stroke="#fff" stroke-width="3.1" stroke-linecap="round"
+              stroke-dasharray="39.27 7.85"
+            />
+            <circle cx="18.5" cy="8.25" r="1.8" fill="#fff" />
+          </svg>
+        </div>
         <div class="brand-text">
           <h1 class="app-title">Odacla</h1>
           <p class="app-subtitle">Time Tracker</p>
@@ -256,14 +266,15 @@
     height: 34px;
     border-radius: 9px;
     background: linear-gradient(145deg, var(--accent), #6d5df6);
-    color: #fff;
-    font-size: 17px;
-    font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
-    letter-spacing: -0.02em;
     box-shadow: var(--shadow-sm);
+  }
+
+  .brand-mark svg {
+    width: 22px;
+    height: 22px;
   }
 
   .app-title {

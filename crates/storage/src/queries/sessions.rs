@@ -115,6 +115,28 @@ impl Database {
         Ok(count as u32)
     }
 
+    /// Get all closed sessions still marked Uncategorized.
+    /// Used by the startup reclassification pass: when new rules arrive
+    /// (defaults or user-created), historical uncategorized data gets
+    /// another chance instead of staying uncategorized forever.
+    pub fn get_closed_uncategorized_sessions(&self) -> Result<Vec<Session>, StorageError> {
+        let mut stmt = self.conn.prepare(
+            r#"SELECT id, start_time, end_time, app_name, window_title,
+                      category, url, activity_count, idle_seconds_total
+               FROM sessions
+               WHERE end_time IS NOT NULL AND category = '"uncategorized"'
+               ORDER BY start_time ASC"#,
+        )?;
+
+        let sessions = stmt
+            .query_map([], |row| Ok(Self::row_to_session(row)))?
+            .filter_map(|r| r.ok())
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(sessions)
+    }
+
     /// Get the currently active (unclosed) session, if any.
     pub fn get_active_session(&self) -> Result<Option<Session>, StorageError> {
         let mut stmt = self.conn.prepare(

@@ -68,6 +68,26 @@ impl Database {
             info!("Database already has {} rules, skipping seed", rule_count);
         }
 
+        // Versioned rule additions — bring existing databases up to date
+        // without resurrecting rules the user deleted from older batches.
+        let seed_version: i64 = self
+            .conn
+            .query_row(
+                "SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'rules_seed_version'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(1);
+
+        if seed_version < 2 {
+            self.conn.execute_batch(schema::RULES_V2_SQL)?;
+            self.conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('rules_seed_version', '2')",
+                [],
+            )?;
+            info!("Applied classification rules migration v2");
+        }
+
         // Migration: drop tables from earlier schema versions that were
         // never written to by any code path (safe — always empty).
         self.conn.execute_batch(

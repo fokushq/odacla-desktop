@@ -163,16 +163,32 @@
   $: maxDailySeconds = Math.max(...dailyTotals.map((d) => d.productive + d.other), 3600);
 
   // ─── Top apps — derived from today's sessions ─────────────────────
+  // Each app is labeled with its DOMINANT category (most seconds), not
+  // whichever category its first session of the day happened to get.
   $: topApps = (() => {
-    const appMap = new Map<string, { seconds: number; category: Category }>();
+    const appMap = new Map<
+      string,
+      { seconds: number; byCat: Map<string, { category: Category; seconds: number }> }
+    >();
     for (const s of sessions) {
       const dur = sessionDuration(s);
-      const ex = appMap.get(s.app_name);
-      if (ex) ex.seconds += dur;
-      else appMap.set(s.app_name, { seconds: dur, category: s.category });
+      let entry = appMap.get(s.app_name);
+      if (!entry) {
+        entry = { seconds: 0, byCat: new Map() };
+        appMap.set(s.app_name, entry);
+      }
+      entry.seconds += dur;
+      const catKey = typeof s.category === "string" ? s.category : `custom:${s.category.custom}`;
+      const cat = entry.byCat.get(catKey);
+      if (cat) cat.seconds += dur;
+      else entry.byCat.set(catKey, { category: s.category, seconds: dur });
     }
     return Array.from(appMap.entries())
-      .map(([name, d]) => ({ name, ...d }))
+      .map(([name, d]) => ({
+        name,
+        seconds: d.seconds,
+        category: [...d.byCat.values()].sort((a, b) => b.seconds - a.seconds)[0].category,
+      }))
       .sort((a, b) => b.seconds - a.seconds)
       .slice(0, 8);
   })();

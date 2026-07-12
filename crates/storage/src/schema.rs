@@ -165,9 +165,42 @@ INSERT OR IGNORE INTO rules (id, name, pattern, target, category, priority, enab
     -- =================================================================
     -- Desktop apps → Productive / Communication (catch common apps)
     -- =================================================================
+    -- =================================================================
+    -- macOS built-in apps (also applied to existing DBs via RULES_V2_SQL)
+    -- =================================================================
+    ('default-090', 'Mail → Productive',                 'mail',            'app_name',     '"productive"',   30, 1),
+    ('default-091', 'Calendar → Productive',             'calendar',        'app_name',     '"productive"',   30, 1),
+    ('default-092', 'Notes → Note-taking',               'notes',           'app_name',     '"note_taking"',  20, 1),
+    ('default-093', 'Preview → Productive',              'preview',         'app_name',     '"productive"',   40, 1),
+    ('default-094', 'Finder → Productive',               'finder',          'app_name',     '"productive"',   40, 1),
+    ('default-095', 'Messages → Communication',          'messages',        'app_name',     '"communication"',20, 1),
+    ('default-096', 'FaceTime → Communication',          'facetime',        'app_name',     '"communication"',20, 1),
+    ('default-097', 'Music → Entertainment',             'music',           'app_name',     '"entertainment"',50, 1),
+    ('default-098', 'Podcasts → Entertainment',          'podcasts',        'app_name',     '"entertainment"',50, 1),
+    ('default-099', 'Xcode → Coding',                    'xcode',           'app_name',     '"coding"',       10, 1),
+
     ('default-080', 'Claude → Productive',               'claude',          'app_name',     '"productive"',   30, 1),
     ('default-081', 'ChatGPT (title) → Productive',      'ChatGPT',         'window_title', '"productive"',   32, 1),
     ('default-082', 'Figma → Productive',                 'Figma',           'app_name',     '"productive"',   30, 1),
     ('default-083', 'Postman → Coding',                   'Postman',         'app_name',     '"coding"',       20, 1),
     ('default-084', 'Docker → Coding',                    'Docker',          'app_name',     '"coding"',       20, 1);
+"#;
+
+/// Rules added after the initial release, applied to EXISTING databases via
+/// a versioned migration (see `rules_seed_version` handling in database.rs).
+/// INSERT OR IGNORE on fixed ids keeps this idempotent; because the batch
+/// only runs once per version bump, rules the user deletes stay deleted.
+pub const RULES_V2_SQL: &str = r#"
+INSERT OR IGNORE INTO rules (id, name, pattern, target, category, priority, enabled) VALUES
+    ('default-075', 'Safari → Productive',       'safari',   'app_name', '"productive"',    90, 1),
+    ('default-090', 'Mail → Productive',         'mail',     'app_name', '"productive"',    30, 1),
+    ('default-091', 'Calendar → Productive',     'calendar', 'app_name', '"productive"',    30, 1),
+    ('default-092', 'Notes → Note-taking',       'notes',    'app_name', '"note_taking"',   20, 1),
+    ('default-093', 'Preview → Productive',      'preview',  'app_name', '"productive"',    40, 1),
+    ('default-094', 'Finder → Productive',       'finder',   'app_name', '"productive"',    40, 1),
+    ('default-095', 'Messages → Communication',  'messages', 'app_name', '"communication"', 20, 1),
+    ('default-096', 'FaceTime → Communication',  'facetime', 'app_name', '"communication"', 20, 1),
+    ('default-097', 'Music → Entertainment',     'music',    'app_name', '"entertainment"', 50, 1),
+    ('default-098', 'Podcasts → Entertainment',  'podcasts', 'app_name', '"entertainment"', 50, 1),
+    ('default-099', 'Xcode → Coding',            'xcode',    'app_name', '"coding"',        10, 1);
 "#;

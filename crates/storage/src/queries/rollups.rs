@@ -55,6 +55,30 @@ impl Database {
         Ok(())
     }
 
+    /// Adjust a rollup by signed deltas — used when moving time between
+    /// categories (e.g. reclassifying old sessions). Values are clamped at
+    /// zero so anomalies can never produce negative totals.
+    pub fn adjust_daily_rollup(
+        &self,
+        date: NaiveDate,
+        category: &Category,
+        delta_seconds: i64,
+        delta_sessions: i64,
+    ) -> Result<(), StorageError> {
+        let date_str = date.format("%Y-%m-%d").to_string();
+        let category_json = serde_json::to_string(category)?;
+
+        self.conn.execute(
+            r#"INSERT INTO daily_rollups (date, category, total_seconds, session_count)
+               VALUES (?1, ?2, MAX(0, ?3), MAX(0, ?4))
+               ON CONFLICT(date, category) DO UPDATE SET
+                   total_seconds = MAX(0, total_seconds + ?3),
+                   session_count = MAX(0, session_count + ?4)"#,
+            rusqlite::params![date_str, category_json, delta_seconds, delta_sessions],
+        )?;
+        Ok(())
+    }
+
     /// Get all rollups for a specific date.
     pub fn get_rollups_for_date(
         &self,
