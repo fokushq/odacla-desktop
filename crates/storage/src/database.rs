@@ -104,6 +104,35 @@ impl Database {
             UPDATE daily_rollups SET category = REPLACE(category, '"Uncategorized"', '"uncategorized"') WHERE category LIKE '%"Uncategorized"%';
         "#)?;
 
+        // Migration: strip self-referential entries (both the Fokus era and
+        // Odacla) from the stored app lists. Self-exclusion is hardcoded in
+        // the collector, so these entries are redundant and only confuse the
+        // Settings UI with stale branding.
+        let legacy_self = ["fokus-desktop", "fokus", "odacla", "odacla-desktop"];
+        let stored: Result<String, _> = self.conn.query_row(
+            "SELECT value FROM settings WHERE key = 'app_settings'",
+            [],
+            |row| row.get(0),
+        );
+        if let Ok(json) = stored {
+            if let Ok(mut s) = serde_json::from_str::<fokus_domain::Settings>(&json) {
+                let before = s.excluded_apps.len() + s.included_apps.len();
+                s.excluded_apps
+                    .retain(|a| !legacy_self.contains(&a.to_lowercase().as_str()));
+                s.included_apps
+                    .retain(|a| !legacy_self.contains(&a.to_lowercase().as_str()));
+                if s.excluded_apps.len() + s.included_apps.len() != before {
+                    let new_json =
+                        serde_json::to_string(&s).map_err(StorageError::Serialization)?;
+                    self.conn.execute(
+                        "UPDATE settings SET value = ?1 WHERE key = 'app_settings'",
+                        [&new_json],
+                    )?;
+                    info!("Cleaned legacy self-referential entries from settings");
+                }
+            }
+        }
+
         // Seed default settings if none exist
         let settings_count: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM settings WHERE key = 'app_settings'",

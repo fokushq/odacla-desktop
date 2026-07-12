@@ -140,6 +140,7 @@ INSERT OR IGNORE INTO rules (id, name, pattern, target, category, priority, enab
     ('default-072', 'Edge → Productive',                'msedge',          'app_name',     '"productive"',   90, 1),
     ('default-073', 'Brave → Productive',               'brave',           'app_name',     '"productive"',   90, 1),
     ('default-074', 'Opera → Productive',               'opera',           'app_name',     '"productive"',   90, 1),
+    ('default-075', 'Safari → Productive',              'safari',          'app_name',     '"productive"',   90, 1),
 
     -- =================================================================
     -- Entertainment → Entertainment (title-based for browser content)

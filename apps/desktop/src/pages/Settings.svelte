@@ -203,6 +203,7 @@
           These applications will never be tracked. Add password managers,
           banking apps, or anything you want to keep private. Matching is
           case-insensitive on both app name and window title.
+          Odacla always excludes itself automatically — no need to add it here.
         </p>
 
         <div class="app-list">

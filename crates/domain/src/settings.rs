@@ -59,10 +59,9 @@ impl Default for Settings {
             polling_interval_secs: 5,
             idle_threshold_secs: 300,
             tracking_mode: TrackingMode::ExcludeList,
+            // Odacla itself is always excluded by a hardcoded check in the
+            // collector — no self-entry needed here.
             excluded_apps: vec![
-                "odacla".to_string(),
-                "Odacla".to_string(),
-                "fokus".to_string(),
                 "1Password".to_string(),
                 "KeePass".to_string(),
                 "Bitwarden".to_string(),
