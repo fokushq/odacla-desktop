@@ -14,7 +14,7 @@ fokus-classifier = { path = "../../../crates/classifier" }
 fokus-storage = { path = "../../../crates/storage" }
 fokus-platform = { path = "../../../crates/platform" }
 
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-shell = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }

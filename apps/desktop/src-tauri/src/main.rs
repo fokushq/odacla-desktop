@@ -138,12 +138,14 @@ fn main() {
             let quit_item = MenuItem::with_id(app, "quit", "Quit Odacla", true, None::<&str>)?;
             let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
+            // Dedicated monochrome glyph (ring + dot) — macOS renders
+            // template icons from the alpha channel, so the colored app
+            // icon would show up as a solid blob in the menu bar.
+            let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))
+                .expect("embedded tray icon is valid PNG");
+
             let tray = TrayIconBuilder::with_id("main")
-                .icon(
-                    app.default_window_icon()
-                        .expect("bundle icon missing")
-                        .clone(),
-                )
+                .icon(tray_icon)
                 .icon_as_template(true)
                 .tooltip("Odacla — Time Tracker")
                 .menu(&tray_menu)
