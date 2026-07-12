@@ -393,6 +393,7 @@
 <style>
   .settings-page {
     max-width: 700px;
+    margin: 0 auto;
   }
 
   .page-header {
@@ -400,29 +401,32 @@
   }
 
   .page-title {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
-    color: #1a1a2e;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
   }
 
   .card {
-    background: #ffffff;
-    border: 1px solid #e8eaed;
-    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
     padding: 24px;
     margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
   }
 
   .card-title {
     font-size: 15px;
     font-weight: 600;
-    color: #1a1a2e;
+    color: var(--text-1);
     margin-bottom: 6px;
+    letter-spacing: -0.01em;
   }
 
   .card-desc {
     font-size: 13px;
-    color: #8b8fa3;
+    color: var(--text-3);
     margin-bottom: 16px;
   }
 
@@ -437,25 +441,26 @@
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    padding: 16px;
-    border: 2px solid #e8eaed;
-    border-radius: 10px;
+    padding: 15px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
     cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
+    transition: border-color var(--transition), background var(--transition);
   }
 
   .mode-option:hover {
-    border-color: #c5cee8;
+    border-color: var(--border-strong);
+    background: var(--surface-2);
   }
 
   .mode-option.selected {
-    border-color: #3b5bdb;
-    background: #f8f9ff;
+    border-color: var(--accent);
+    background: var(--accent-soft);
   }
 
   .mode-option input[type="radio"] {
-    margin-top: 2px;
-    accent-color: #3b5bdb;
+    margin-top: 3px;
+    accent-color: var(--accent);
   }
 
   .mode-content {
@@ -465,14 +470,14 @@
   }
 
   .mode-label {
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 600;
-    color: #1a1a2e;
+    color: var(--text-1);
   }
 
   .mode-desc {
     font-size: 12px;
-    color: #8b8fa3;
+    color: var(--text-3);
   }
 
   /* ─── Settings Grid ────────────────────────────────────────────── */
@@ -484,32 +489,35 @@
 
   .setting-item label {
     display: block;
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 500;
-    color: #1a1a2e;
+    color: var(--text-1);
     margin-bottom: 2px;
   }
 
   .setting-desc {
     font-size: 12px;
-    color: #8b8fa3;
+    color: var(--text-3);
     margin-bottom: 8px;
   }
 
   .setting-item input {
-    padding: 10px 14px;
-    border: 1px solid #e8eaed;
-    border-radius: 8px;
+    padding: 9px 13px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
     font-family: inherit;
-    font-size: 14px;
-    color: #1a1a2e;
-    background: #f8f9fb;
+    font-size: 13.5px;
+    color: var(--text-1);
+    background: var(--surface-2);
     width: 160px;
+    transition: border-color var(--transition), background var(--transition);
+    font-variant-numeric: tabular-nums;
   }
 
   .setting-item input:focus {
     outline: none;
-    border-color: #3b5bdb;
+    border-color: var(--accent);
+    background: var(--surface);
   }
 
   /* ─── App Lists (shared by excluded and included) ───────────────── */
@@ -525,21 +533,27 @@
     justify-content: space-between;
     align-items: center;
     padding: 8px 14px;
-    background: #f8f9fb;
-    border-radius: 8px;
-    font-size: 14px;
-    color: #5a5f7a;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
+    color: var(--text-1);
   }
 
   .btn-remove {
     padding: 4px 10px;
     background: transparent;
-    color: #e03131;
-    border: 1px solid #ffc9c9;
-    border-radius: 4px;
+    color: var(--danger);
+    border: 1px solid var(--border);
+    border-radius: 6px;
     font-size: 11px;
     cursor: pointer;
     font-family: inherit;
+    transition: background var(--transition), border-color var(--transition);
+  }
+
+  .btn-remove:hover {
+    background: var(--danger-soft);
+    border-color: var(--danger);
   }
 
   .add-app {
@@ -549,18 +563,20 @@
 
   .add-app input {
     flex: 1;
-    padding: 10px 14px;
-    border: 1px solid #e8eaed;
-    border-radius: 8px;
+    padding: 9px 13px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
     font-family: inherit;
-    font-size: 14px;
-    color: #1a1a2e;
-    background: #f8f9fb;
+    font-size: 13.5px;
+    color: var(--text-1);
+    background: var(--surface-2);
+    transition: border-color var(--transition), background var(--transition);
   }
 
   .add-app input:focus {
     outline: none;
-    border-color: #3b5bdb;
+    border-color: var(--accent);
+    background: var(--surface);
   }
 
   /* ─── Toggles ──────────────────────────────────────────────────── */
@@ -574,32 +590,33 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 14px;
-    color: #5a5f7a;
+    font-size: 13.5px;
+    color: var(--text-1);
     cursor: pointer;
   }
 
   .toggle-item input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: #3b5bdb;
+    width: 17px;
+    height: 17px;
+    accent-color: var(--accent);
   }
 
   /* ─── Buttons ──────────────────────────────────────────────────── */
   .btn-primary {
     padding: 10px 24px;
-    background: #3b5bdb;
+    background: var(--accent);
     color: white;
     border: none;
-    border-radius: 8px;
-    font-size: 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
     font-weight: 500;
     cursor: pointer;
     font-family: inherit;
+    transition: background var(--transition);
   }
 
   .btn-primary:hover {
-    background: #364fc7;
+    background: var(--accent-hover);
   }
 
   .btn-primary:disabled {
@@ -608,14 +625,20 @@
   }
 
   .btn-secondary {
-    padding: 10px 18px;
-    background: #f0f2f5;
-    color: #5a5f7a;
-    border: 1px solid #e8eaed;
-    border-radius: 8px;
-    font-size: 14px;
+    padding: 9px 18px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
     cursor: pointer;
     font-family: inherit;
+    transition: background var(--transition), color var(--transition);
+  }
+
+  .btn-secondary:hover {
+    background: var(--surface-3);
+    color: var(--text-1);
   }
 
   .save-row {
@@ -627,7 +650,7 @@
 
   .save-message {
     font-size: 13px;
-    color: #10B981;
+    color: var(--success);
     font-weight: 500;
   }
 
@@ -635,15 +658,15 @@
   .detected-section {
     margin-top: 16px;
     padding-top: 16px;
-    border-top: 1px solid #f0f2f5;
+    border-top: 1px solid var(--border);
   }
 
   .detected-label {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    color: #8b8fa3;
+    color: var(--text-3);
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.05em;
     margin-bottom: 10px;
   }
 
@@ -656,39 +679,36 @@
   /* Default chip — for historically detected apps */
   .chip {
     padding: 5px 12px;
-    background: #eef2ff;
-    color: #3b5bdb;
-    border: 1px solid #c5cee8;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid transparent;
     border-radius: 16px;
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
     font-family: inherit;
-    transition: all 0.15s ease;
+    transition: background var(--transition), color var(--transition);
   }
 
   .chip:hover {
-    background: #3b5bdb;
+    background: var(--accent);
     color: white;
-    border-color: #3b5bdb;
   }
 
   /* Live chip — for currently running apps */
   .chip-live {
-    background: #ebfbee;
-    color: #2f9e44;
-    border-color: #8ce99a;
+    background: var(--success-soft);
+    color: var(--success);
   }
 
   .chip-live:hover {
-    background: #2f9e44;
+    background: var(--success);
     color: white;
-    border-color: #2f9e44;
   }
 
   .loading-state {
     text-align: center;
     padding: 40px;
-    color: #8b8fa3;
+    color: var(--text-3);
   }
 </style>

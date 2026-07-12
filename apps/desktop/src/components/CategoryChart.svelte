@@ -65,13 +65,13 @@
     viewBox="0 0 {SIZE} {SIZE}"
     class="donut-chart"
   >
-    <!-- Background circle (light gray ring) -->
+    <!-- Background ring — follows the theme -->
     <circle
       cx={CENTER}
       cy={CENTER}
       r={RADIUS}
       fill="none"
-      stroke="#f0f2f5"
+      class="ring-bg"
       stroke-width={STROKE_WIDTH}
     />
 
@@ -139,17 +139,22 @@
     display: block;
   }
 
+  .ring-bg {
+    stroke: var(--surface-2);
+  }
+
   /* SVG text styling */
   :global(.center-label) {
     font-size: 12px;
-    fill: #8b8fa3;
+    fill: var(--text-3);
     font-weight: 500;
   }
 
   :global(.center-value) {
     font-size: 18px;
-    fill: #1a1a2e;
+    fill: var(--text-1);
     font-weight: 700;
+    letter-spacing: -0.01em;
   }
 
   /* Legend */
@@ -175,21 +180,23 @@
 
   .legend-name {
     flex: 1;
-    color: #5a5f7a;
+    color: var(--text-2);
     font-weight: 500;
   }
 
   .legend-value {
-    color: #1a1a2e;
+    color: var(--text-1);
     font-weight: 600;
     min-width: 60px;
     text-align: right;
+    font-variant-numeric: tabular-nums;
   }
 
   .legend-percent {
-    color: #8b8fa3;
+    color: var(--text-3);
     font-size: 12px;
     min-width: 36px;
     text-align: right;
+    font-variant-numeric: tabular-nums;
   }
 </style>

@@ -1,15 +1,15 @@
 <!--
   =============================================================================
-  App.svelte — Root component with navigation
+  App.svelte — Root component: design tokens + shell (sidebar / content)
   =============================================================================
-  This is the top-level layout. It renders:
-  - A sidebar with navigation links
-  - The active page component
+  The <style> block below defines the global design system as CSS custom
+  properties: colors (light + dark via prefers-color-scheme), typography,
+  radii, shadows and transitions. Every page component consumes these
+  tokens — no hardcoded colors outside this file and types.ts (category
+  colors, which are data, not chrome).
 
-  DESIGN APPROACH:
-  Instead of a router library, we use a simple reactive variable (`currentPage`)
-  to switch between pages. For a desktop app with 4-5 pages, this is simpler
-  and lighter than a full router.
+  Navigation is a simple reactive variable — a router would be overkill
+  for five pages.
   =============================================================================
 -->
 
@@ -20,25 +20,49 @@
   import Rules from "./pages/Rules.svelte";
   import SettingsPage from "./pages/Settings.svelte";
 
-  // The currently active page — defaults to the dashboard
   let currentPage: "dashboard" | "timeline" | "reports" | "rules" | "settings" = "dashboard";
 
-  // Navigation items for the sidebar
+  // Inline stroke icons (24×24, lucide-style). Static strings — safe for {@html}.
   const navItems = [
-    { id: "dashboard" as const, label: "Dashboard", icon: "📊" },
-    { id: "timeline" as const, label: "Timeline", icon: "🕐" },
-    { id: "reports" as const, label: "Reports", icon: "📈" },
-    { id: "rules" as const, label: "Rules", icon: "📋" },
-    { id: "settings" as const, label: "Settings", icon: "⚙️" },
+    {
+      id: "dashboard" as const,
+      label: "Dashboard",
+      icon: `<rect x="3.5" y="3.5" width="7" height="8.5" rx="1.5"/><rect x="14" y="3.5" width="6.5" height="5.5" rx="1.5"/><rect x="14" y="12.5" width="6.5" height="8" rx="1.5"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.5"/>`,
+    },
+    {
+      id: "timeline" as const,
+      label: "Timeline",
+      icon: `<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>`,
+    },
+    {
+      id: "reports" as const,
+      label: "Reports",
+      icon: `<path d="M3.5 20.5h17"/><path d="M6 16.5v-6"/><path d="M10.5 16.5V4.5"/><path d="M15 16.5v-8"/><path d="M19.5 16.5v-4"/>`,
+    },
+    {
+      id: "rules" as const,
+      label: "Rules",
+      icon: `<path d="M10 6.5h10.5M10 12h10.5M10 17.5h10.5"/><path d="M3.5 6l1.5 1.5L7.5 5"/><path d="M3.5 11.5L5 13l2.5-2.5"/><path d="M3.5 17l1.5 1.5L7.5 16"/>`,
+    },
+    {
+      id: "settings" as const,
+      label: "Settings",
+      icon: `<circle cx="12" cy="12" r="3"/><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>`,
+    },
   ];
 </script>
 
 <div class="app-container">
-  <!-- ─── Sidebar Navigation ─────────────────────────────────────── -->
+  <!-- ─── Sidebar ────────────────────────────────────────────────── -->
   <nav class="sidebar">
     <div class="sidebar-header">
-      <h1 class="app-title">Odacla</h1>
-      <p class="app-subtitle">Time Tracker</p>
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">O</div>
+        <div class="brand-text">
+          <h1 class="app-title">Odacla</h1>
+          <p class="app-subtitle">Time Tracker</p>
+        </div>
+      </div>
     </div>
 
     <ul class="nav-list">
@@ -49,7 +73,18 @@
             class:active={currentPage === item.id}
             on:click={() => (currentPage = item.id)}
           >
-            <span class="nav-icon">{item.icon}</span>
+            <svg
+              class="nav-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              {@html item.icon}
+            </svg>
             <span class="nav-label">{item.label}</span>
           </button>
         </li>
@@ -61,7 +96,7 @@
     </div>
   </nav>
 
-  <!-- ─── Main Content Area ──────────────────────────────────────── -->
+  <!-- ─── Main Content ───────────────────────────────────────────── -->
   <main class="main-content">
     {#if currentPage === "dashboard"}
       <Dashboard />
@@ -78,7 +113,78 @@
 </div>
 
 <style>
-  /* ─── Global Reset & Variables ─────────────────────────────────── */
+  /* ═══ Design Tokens ═════════════════════════════════════════════ */
+  :global(:root) {
+    /* Surfaces */
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --surface-2: #f2f2f6;
+    --surface-3: #e9e9ee;
+    --sidebar-bg: #fbfbfd;
+
+    /* Borders */
+    --border: rgba(0, 0, 0, 0.08);
+    --border-strong: rgba(0, 0, 0, 0.14);
+
+    /* Text */
+    --text-1: #1d1d1f;
+    --text-2: #55555c;
+    --text-3: #86868b;
+
+    /* Accent (Apple-ish blue) */
+    --accent: #0071e3;
+    --accent-hover: #0077ed;
+    --accent-soft: rgba(0, 113, 227, 0.1);
+    --accent-soft-strong: rgba(0, 113, 227, 0.16);
+
+    /* Semantic */
+    --danger: #e03131;
+    --danger-soft: rgba(224, 49, 49, 0.09);
+    --success: #10b981;
+    --success-soft: rgba(16, 185, 129, 0.12);
+
+    /* Shape & depth */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px -8px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.06), 0 12px 32px -12px rgba(0, 0, 0, 0.12);
+
+    /* Motion */
+    --transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :global(:root) {
+      --bg: #1c1c1e;
+      --surface: #28282b;
+      --surface-2: #323236;
+      --surface-3: #3d3d42;
+      --sidebar-bg: #232326;
+
+      --border: rgba(255, 255, 255, 0.09);
+      --border-strong: rgba(255, 255, 255, 0.16);
+
+      --text-1: #f5f5f7;
+      --text-2: #b8b8bf;
+      --text-3: #85858c;
+
+      --accent: #0a84ff;
+      --accent-hover: #339dff;
+      --accent-soft: rgba(10, 132, 255, 0.16);
+      --accent-soft-strong: rgba(10, 132, 255, 0.24);
+
+      --danger: #ff6b6b;
+      --danger-soft: rgba(255, 107, 107, 0.14);
+      --success: #34d399;
+      --success-soft: rgba(52, 211, 153, 0.16);
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px -8px rgba(0, 0, 0, 0.4);
+      --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.35), 0 12px 32px -12px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  /* ═══ Global Reset & Base ═══════════════════════════════════════ */
   :global(*) {
     margin: 0;
     padding: 0;
@@ -86,107 +192,150 @@
   }
 
   :global(body) {
-    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background-color: #f8f9fb;
-    color: #1a1a2e;
-    line-height: 1.6;
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text",
+      "Segoe UI Variable", "Segoe UI",
+      Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--bg);
+    color: var(--text-1);
+    line-height: 1.55;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-size: 14px;
   }
 
-  /* ─── App Layout ───────────────────────────────────────────────── */
-  /* Sidebar + main content in a horizontal flex layout.
-     The sidebar is fixed-width, and the main content fills the rest. */
+  :global(::selection) {
+    background: var(--accent-soft-strong);
+  }
+
+  /* Subtle scrollbars that match both themes */
+  :global(::-webkit-scrollbar) {
+    width: 10px;
+    height: 10px;
+  }
+  :global(::-webkit-scrollbar-thumb) {
+    background: var(--border-strong);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  :global(::-webkit-scrollbar-track) {
+    background: transparent;
+  }
+
+  /* ═══ Layout ════════════════════════════════════════════════════ */
   .app-container {
     display: flex;
     height: 100vh;
     overflow: hidden;
   }
 
-  /* ─── Sidebar ──────────────────────────────────────────────────── */
+  /* ═══ Sidebar ═══════════════════════════════════════════════════ */
   .sidebar {
-    width: 220px;
-    background: #ffffff;
-    border-right: 1px solid #e8eaed;
+    width: 224px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    padding: 24px 0;
-    flex-shrink: 0;  /* Don't let the sidebar shrink on small windows */
+    padding: 20px 0 16px;
+    flex-shrink: 0;
   }
 
   .sidebar-header {
-    padding: 0 24px 24px;
-    border-bottom: 1px solid #e8eaed;
+    padding: 4px 20px 18px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(145deg, var(--accent), #6d5df6);
+    color: #fff;
+    font-size: 17px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: -0.02em;
+    box-shadow: var(--shadow-sm);
   }
 
   .app-title {
-    font-size: 22px;
+    font-size: 16px;
     font-weight: 700;
-    color: #1a1a2e;
-    letter-spacing: -0.5px;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
   }
 
   .app-subtitle {
-    font-size: 12px;
-    color: #8b8fa3;
-    margin-top: 2px;
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 1px;
   }
 
   .nav-list {
     list-style: none;
-    padding: 16px 12px;
+    padding: 6px 12px;
     flex: 1;
   }
 
   .nav-item {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 11px;
     width: 100%;
-    padding: 10px 16px;
+    padding: 9px 12px;
     border: none;
     background: transparent;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    font-size: 14px;
+    font-size: 13.5px;
     font-family: inherit;
-    color: #5a5f7a;
-    transition: all 0.15s ease;
-    margin-bottom: 4px;
+    font-weight: 500;
+    color: var(--text-2);
+    transition: background var(--transition), color var(--transition);
+    margin-bottom: 2px;
   }
 
   .nav-item:hover {
-    background: #f0f2f5;
-    color: #1a1a2e;
+    background: var(--surface-2);
+    color: var(--text-1);
   }
 
-  /* Active state — subtle blue highlight */
   .nav-item.active {
-    background: #eef2ff;
-    color: #3b5bdb;
-    font-weight: 500;
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 
   .nav-icon {
-    font-size: 16px;
-    width: 20px;
-    text-align: center;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    opacity: 0.9;
   }
 
   .sidebar-footer {
-    padding: 16px 24px;
-    border-top: 1px solid #e8eaed;
+    padding: 14px 22px 0;
+    border-top: 1px solid var(--border);
   }
 
   .version {
     font-size: 11px;
-    color: #b0b4c8;
+    color: var(--text-3);
   }
 
-  /* ─── Main Content ─────────────────────────────────────────────── */
+  /* ═══ Main Content ══════════════════════════════════════════════ */
   .main-content {
     flex: 1;
     overflow-y: auto;
-    padding: 32px;
-    background: #f8f9fb;
+    padding: 32px 36px 48px;
+    background: var(--bg);
   }
 </style>

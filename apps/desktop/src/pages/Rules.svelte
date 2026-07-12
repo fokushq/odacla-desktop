@@ -312,6 +312,7 @@
 <style>
   .rules-page {
     max-width: 1000px;
+    margin: 0 auto;
   }
 
   .page-header {
@@ -322,30 +323,33 @@
   }
 
   .page-title {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
-    color: #1a1a2e;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
   }
 
   .page-subtitle {
     font-size: 13px;
-    color: #8b8fa3;
+    color: var(--text-3);
     margin-top: 4px;
   }
 
   .card {
-    background: #ffffff;
-    border: 1px solid #e8eaed;
-    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
     padding: 24px;
     margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
   }
 
   .card-title {
     font-size: 15px;
     font-weight: 600;
-    color: #1a1a2e;
+    color: var(--text-1);
     margin-bottom: 20px;
+    letter-spacing: -0.01em;
   }
 
   /* ─── Form ─────────────────────────────────────────────────────── */
@@ -362,63 +366,65 @@
   }
 
   .form-group label {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    color: #5a5f7a;
+    color: var(--text-2);
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.05em;
   }
 
   .form-group input,
   .form-group select {
-    padding: 10px 14px;
-    border: 1px solid #e8eaed;
-    border-radius: 8px;
+    padding: 9px 13px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
     font-family: inherit;
-    font-size: 14px;
-    color: #1a1a2e;
-    background: #f8f9fb;
-    transition: border-color 0.15s;
+    font-size: 13.5px;
+    color: var(--text-1);
+    background: var(--surface-2);
+    transition: border-color var(--transition), background var(--transition);
   }
 
   .form-group input:focus,
   .form-group select:focus {
     outline: none;
-    border-color: #3b5bdb;
+    border-color: var(--accent);
+    background: var(--surface);
   }
 
   /* ─── Buttons ──────────────────────────────────────────────────── */
   .btn-primary {
-    padding: 10px 20px;
-    background: #3b5bdb;
+    padding: 9px 20px;
+    background: var(--accent);
     color: white;
     border: none;
-    border-radius: 8px;
-    font-size: 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
     font-weight: 500;
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.15s;
+    transition: background var(--transition);
   }
 
   .btn-primary:hover {
-    background: #364fc7;
+    background: var(--accent-hover);
   }
 
   .btn-delete {
     padding: 5px 12px;
     background: transparent;
-    color: #e03131;
-    border: 1px solid #ffc9c9;
+    color: var(--danger);
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 12px;
     cursor: pointer;
     font-family: inherit;
-    transition: all 0.15s;
+    transition: background var(--transition), border-color var(--transition);
   }
 
   .btn-delete:hover {
-    background: #fff5f5;
+    background: var(--danger-soft);
+    border-color: var(--danger);
   }
 
   /* ─── Table ────────────────────────────────────────────────────── */
@@ -429,38 +435,41 @@
 
   .rules-table th {
     text-align: left;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 600;
-    color: #8b8fa3;
+    color: var(--text-3);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.06em;
     padding: 10px 12px;
-    border-bottom: 2px solid #f0f2f5;
+    border-bottom: 1px solid var(--border-strong);
   }
 
   .rules-table td {
-    padding: 12px;
+    padding: 11px 12px;
     font-size: 13px;
-    color: #5a5f7a;
-    border-bottom: 1px solid #f0f2f5;
+    color: var(--text-2);
+    border-bottom: 1px solid var(--border);
   }
 
   .cell-priority {
     font-weight: 600;
-    color: #1a1a2e;
-    font-size: 14px;
+    color: var(--text-1);
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
   }
 
   .cell-name {
     font-weight: 500;
-    color: #1a1a2e;
+    color: var(--text-1);
   }
 
   .cell-pattern code {
-    background: #f0f2f5;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 12px;
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   }
 
   .cell-target {
@@ -478,27 +487,27 @@
   .status-toggle {
     font-size: 12px;
     font-weight: 500;
-    color: #e03131;
+    color: var(--danger);
     background: transparent;
-    border: 1px solid #ffc9c9;
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 3px 10px;
     cursor: pointer;
     font-family: inherit;
-    transition: all 0.15s;
+    transition: background var(--transition), border-color var(--transition);
   }
 
   .status-toggle.enabled {
-    color: #10b981;
-    border-color: #a7f3d0;
+    color: var(--success);
   }
 
   .status-toggle:hover {
-    background: #f8f9fb;
+    background: var(--surface-2);
+    border-color: var(--border-strong);
   }
 
   .disabled-row {
-    opacity: 0.55;
+    opacity: 0.5;
   }
 
   .cell-actions {
@@ -508,39 +517,40 @@
   .btn-edit {
     padding: 5px 12px;
     background: transparent;
-    color: #3b5bdb;
-    border: 1px solid #c5cee8;
+    color: var(--accent);
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 12px;
     cursor: pointer;
     font-family: inherit;
     margin-right: 6px;
-    transition: all 0.15s;
+    transition: background var(--transition), border-color var(--transition);
   }
 
   .btn-edit:hover {
-    background: #eef2ff;
+    background: var(--accent-soft);
+    border-color: var(--accent);
   }
 
   /* ─── Inline edit row ──────────────────────────────────────────── */
   .editing-row {
-    background: #f8f9ff;
+    background: var(--accent-soft);
   }
 
   .edit-input {
     width: 100%;
     padding: 6px 8px;
-    border: 1px solid #c5cee8;
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
     font-family: inherit;
     font-size: 13px;
-    color: #1a1a2e;
-    background: #ffffff;
+    color: var(--text-1);
+    background: var(--surface);
   }
 
   .edit-input:focus {
     outline: none;
-    border-color: #3b5bdb;
+    border-color: var(--accent);
   }
 
   .edit-priority {
@@ -553,7 +563,7 @@
 
   .btn-save {
     padding: 5px 14px;
-    background: #3b5bdb;
+    background: var(--accent);
     color: white;
     border: none;
     border-radius: 6px;
@@ -562,26 +572,32 @@
     cursor: pointer;
     font-family: inherit;
     margin-right: 6px;
+    transition: background var(--transition);
   }
 
   .btn-save:hover {
-    background: #364fc7;
+    background: var(--accent-hover);
   }
 
   .btn-cancel {
     padding: 5px 12px;
     background: transparent;
-    color: #5a5f7a;
-    border: 1px solid #e8eaed;
+    color: var(--text-2);
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 12px;
     cursor: pointer;
     font-family: inherit;
+    transition: background var(--transition);
+  }
+
+  .btn-cancel:hover {
+    background: var(--surface-2);
   }
 
   .loading-state {
     text-align: center;
     padding: 40px;
-    color: #8b8fa3;
+    color: var(--text-3);
   }
 </style>

@@ -12,7 +12,6 @@
 -->
 
 <script lang="ts">
-  import { onMount } from "svelte";
   import { getSessionsForDate, getTodaySessions } from "$lib/api";
   import type { Session } from "$lib/types";
   import {
@@ -56,9 +55,8 @@
     return sum + (end - new Date(s.start_time).getTime()) / 1000;
   }, 0);
 
-  onMount(fetchSessions);
-
-  // Re-fetch when the date changes
+  // Re-fetch when the date changes. Reactive statements also run once on
+  // init, so this covers the initial load — no onMount needed.
   $: selectedDate, fetchSessions();
 </script>
 
@@ -124,6 +122,7 @@
 <style>
   .timeline-page {
     max-width: 800px;
+    margin: 0 auto;
   }
 
   .page-header {
@@ -134,26 +133,39 @@
   }
 
   .page-title {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
-    color: #1a1a2e;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
   }
 
   .page-subtitle {
     font-size: 13px;
-    color: #8b8fa3;
+    color: var(--text-3);
     margin-top: 4px;
+    font-variant-numeric: tabular-nums;
   }
 
   .date-picker {
     padding: 8px 14px;
-    border: 1px solid #e8eaed;
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
     font-family: inherit;
-    font-size: 14px;
-    color: #5a5f7a;
-    background: #ffffff;
+    font-size: 13.5px;
+    color: var(--text-1);
+    background: var(--surface);
     cursor: pointer;
+    transition: border-color var(--transition);
+    color-scheme: light dark; /* native picker follows the theme */
+  }
+
+  .date-picker:hover {
+    border-color: var(--border-strong);
+  }
+
+  .date-picker:focus {
+    outline: none;
+    border-color: var(--accent);
   }
 
   /* ─── Session Blocks ───────────────────────────────────────────── */
@@ -166,15 +178,16 @@
   .session-block {
     display: flex;
     gap: 16px;
-    background: #ffffff;
-    border: 1px solid #e8eaed;
-    border-radius: 10px;
-    padding: 16px;
-    transition: box-shadow 0.15s ease;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 15px 16px;
+    transition: box-shadow var(--transition), border-color var(--transition);
   }
 
   .session-block:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-sm);
+    border-color: var(--border-strong);
   }
 
   .session-indicator {
@@ -196,9 +209,10 @@
   }
 
   .session-app {
-    font-size: 15px;
+    font-size: 14.5px;
     font-weight: 600;
-    color: #1a1a2e;
+    color: var(--text-1);
+    letter-spacing: -0.01em;
   }
 
   .session-category {
@@ -213,19 +227,21 @@
   }
 
   .session-time {
-    font-size: 13px;
-    color: #8b8fa3;
+    font-size: 12.5px;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
   }
 
   .session-duration {
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 600;
-    color: #5a5f7a;
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
   }
 
   .session-title {
     font-size: 12px;
-    color: #b0b4c8;
+    color: var(--text-3);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -235,6 +251,6 @@
   .empty-state {
     text-align: center;
     padding: 60px 20px;
-    color: #8b8fa3;
+    color: var(--text-3);
   }
 </style>
