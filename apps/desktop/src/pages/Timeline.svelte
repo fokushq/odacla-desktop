@@ -114,54 +114,55 @@
   $: spanMs = viewRange.end - viewRange.start;
   $: spanHours = Math.round(spanMs / HOUR_MS);
 
-  /** Visual coalescing: adjacent spans of the same app + category with
-   *  gaps under 3 minutes are drawn as ONE block — fragmented history
-   *  reads as calm, continuous work instead of a barcode. */
+  /** Lane timeline (Timing.app-style): each category gets its OWN row,
+   *  so a small Coding sliver never hides inside a long Deep Work run.
+   *  Within a lane, spans with gaps under 3 minutes coalesce into one
+   *  block so history reads calmly. */
   const VISUAL_GAP_MS = 3 * 60_000;
 
-  interface MergedSpan {
+  interface LaneBlock {
     from: number;
     to: number;
-    app: string;
-    category: Category;
     count: number;
+  }
+
+  interface Lane {
+    category: Category;
+    totalMs: number;
+    blocks: LaneBlock[];
   }
 
   function spanCatKey(c: Category): string {
     return typeof c === "string" ? c : `custom:${c.custom}`;
   }
 
-  $: mergedSpans = (() => {
-    const sorted = [...daySpans].sort((a, b) => a.from - b.from);
-    const out: MergedSpan[] = [];
-    for (const s of sorted) {
-      const last = out[out.length - 1];
-      if (
-        last &&
-        last.app === s.session.app_name &&
-        spanCatKey(last.category) === spanCatKey(s.session.category) &&
-        s.from - last.to <= VISUAL_GAP_MS
-      ) {
+  $: lanes = (() => {
+    const byCat = new Map<string, Lane>();
+    for (const s of [...daySpans].sort((a, b) => a.from - b.from)) {
+      const key = spanCatKey(s.session.category);
+      let lane = byCat.get(key);
+      if (!lane) {
+        lane = { category: s.session.category, totalMs: 0, blocks: [] };
+        byCat.set(key, lane);
+      }
+      const last = lane.blocks[lane.blocks.length - 1];
+      if (last && s.from - last.to <= VISUAL_GAP_MS) {
         last.to = Math.max(last.to, s.to);
         last.count++;
       } else {
-        out.push({
-          from: s.from,
-          to: s.to,
-          app: s.session.app_name,
-          category: s.session.category,
-          count: 1,
-        });
+        lane.blocks.push({ from: s.from, to: s.to, count: 1 });
       }
+      lane.totalMs += s.to - s.from;
     }
-    return out;
+    return [...byCat.values()].sort((a, b) => b.totalMs - a.totalMs);
   })();
 
-  $: hourBlocks = mergedSpans.map((m) => ({
-    span: m,
-    left: ((m.from - viewRange.start) / spanMs) * 100,
-    width: Math.max(((m.to - m.from) / spanMs) * 100, 0.35),
-  }));
+  function blockStyle(b: LaneBlock): { left: number; width: number } {
+    return {
+      left: ((b.from - viewRange.start) / spanMs) * 100,
+      width: Math.max(((b.to - b.from) / spanMs) * 100, 0.35),
+    };
+  }
 
   /** "Now" marker — only when today's current time is inside the window. */
   $: nowPct = (() => {
@@ -172,14 +173,26 @@
   })();
 
   function msToTime(ms: number): string {
-    return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
   }
 
-  function blockTooltip(m: MergedSpan): string {
+  /** Compact total for the lane column: minute precision ("2h 47m",
+   *  "3m"); only sub-minute lanes show seconds. */
+  function laneTotal(ms: number): string {
+    const secs = Math.round(ms / 1000);
+    if (secs < 60) return `${secs}s`;
+    const hours = Math.floor(secs / 3600);
+    const minutes = Math.floor((secs % 3600) / 60);
+    if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    return `${minutes}m`;
+  }
+
+  // The lane label already names the category — the tooltip carries
+  // only what the label can't: when and for how long.
+  function blockTooltip(b: LaneBlock): string {
     const isNow =
-      selectedDate === localToday() && Date.now() - m.to < 60_000 ? "now" : msToTime(m.to);
-    const sessions = m.count > 1 ? ` · ${m.count} sessions` : "";
-    return `${m.app} · ${categoryName(m.category)}\n${msToTime(m.from)} – ${isNow} · ${formatDuration(Math.round((m.to - m.from) / 1000))}${sessions}`;
+      selectedDate === localToday() && Date.now() - b.to < 60_000 ? "now" : msToTime(b.to);
+    return `${msToTime(b.from)}–${isNow} · ${laneTotal(b.to - b.from)}`;
   }
 
   // Tick density adapts to the zoom level
@@ -276,24 +289,49 @@
           {hourTicks[0]?.label}:00 – {hourTicks[hourTicks.length - 1]?.label}:00
         </span>
       </div>
-      <div class="hour-track" style="--tick-count: {spanHours}">
-        {#each hourBlocks as block}
-          <div
-            class="hour-block"
-            style="left: {block.left}%; width: {block.width}%; background-color: {categoryColor(block.span.category)}"
-            data-tooltip={blockTooltip(block.span)}
-          ></div>
-        {/each}
-        {#if nowPct !== null}
-          <div class="now-marker" style="left: {nowPct}%" title="Now">
-            <span class="now-dot"></span>
-          </div>
-        {/if}
+      <div class="lanes">
+        <div class="lane-labels">
+          {#each lanes as lane}
+            <div class="lane-label">
+              <span class="lane-dot" style="background-color: {categoryColor(lane.category)}"></span>
+              <span class="lane-name">{categoryName(lane.category)}</span>
+            </div>
+          {/each}
+        </div>
+        <div class="lane-rails">
+          {#each lanes as lane}
+            <!-- Rail tinted with the lane's color; blocks are glossy pills -->
+            <div class="lane-rail" style="background-color: {categoryColor(lane.category)}14">
+              {#each lane.blocks as block}
+                {@const pos = blockStyle(block)}
+                <div
+                  class="lane-block"
+                  style="left: {pos.left}%; width: {pos.width}%; background-color: {categoryColor(lane.category)}"
+                  data-tooltip={blockTooltip(block)}
+                ></div>
+              {/each}
+            </div>
+          {/each}
+          {#if nowPct !== null}
+            <div class="now-marker" style="left: {nowPct}%" title="Now">
+              <span class="now-dot"></span>
+            </div>
+          {/if}
+        </div>
+        <div class="lane-totals">
+          {#each lanes as lane}
+            <span class="lane-total">{laneTotal(lane.totalMs)}</span>
+          {/each}
+        </div>
       </div>
-      <div class="hour-labels">
-        {#each hourTicks as tick}
-          <span class="hour-label" style="left: {tick.pct}%">{tick.label}</span>
-        {/each}
+      <div class="hour-axis">
+        <div class="hour-axis-spacer"></div>
+        <div class="hour-labels">
+          {#each hourTicks as tick}
+            <span class="hour-label" style="left: {tick.pct}%">{tick.label}</span>
+          {/each}
+        </div>
+        <div class="hour-axis-spacer-right"></div>
       </div>
     </div>
 
@@ -420,35 +458,97 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .hour-track {
+  .lanes {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .lane-labels {
+    width: 96px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 6px 0;
+  }
+
+  .lane-label {
+    height: 14px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .lane-totals {
+    width: 56px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 6px 0;
+  }
+
+  .lane-total {
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lane-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .lane-name {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .lane-rails {
     position: relative;
-    height: 54px;
-    background: var(--surface-2);
-    border-radius: var(--radius-sm);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 6px 0;
     /* NO overflow:hidden — it would clip the hover tooltips */
-    /* one subtle gridline per visible hour (count set inline) */
-    background-image: repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent calc(100% / var(--tick-count, 24) - 1px),
-      var(--border) calc(100% / var(--tick-count, 24) - 1px),
-      var(--border) calc(100% / var(--tick-count, 24))
-    );
   }
 
-  .hour-block {
+  .lane-rail {
+    position: relative;
+    height: 14px;
+    border-radius: 7px;
+  }
+
+  .lane-block {
     position: absolute;
-    top: 8px;
-    bottom: 8px;
-    border-radius: 3px;
-    opacity: 0.92;
-    transition: opacity var(--transition);
-    min-width: 3px;
+    top: 0;
+    bottom: 0;
+    border-radius: 7px;
+    /* Tiny sessions render as slim rounded ticks, not balloons */
+    min-width: 6px;
+    /* Soft top highlight over the category color */
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 60%);
+    box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.12);
+    transition: transform var(--transition), box-shadow var(--transition);
   }
 
-  .hour-block:hover {
-    opacity: 1;
-    box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--border-strong);
+  .lane-block:hover {
+    transform: scaleY(1.15);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.22);
     z-index: 5;
   }
 
@@ -472,10 +572,26 @@
     background: var(--danger);
   }
 
+  .hour-axis {
+    display: flex;
+    gap: 12px;
+    margin-top: 6px;
+  }
+
+  .hour-axis-spacer {
+    width: 96px;
+    flex-shrink: 0;
+  }
+
+  .hour-axis-spacer-right {
+    width: 56px;
+    flex-shrink: 0;
+  }
+
   .hour-labels {
     position: relative;
+    flex: 1;
     height: 18px;
-    margin-top: 6px;
   }
 
   .hour-label {

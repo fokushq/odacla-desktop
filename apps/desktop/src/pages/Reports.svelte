@@ -235,7 +235,7 @@
             <div class="bar-col">
               <div
                 class="bar-stack week-bar"
-                data-tooltip={`${week.label}\n${formatDuration(week.total)} total · ${formatDuration(week.productive)} productive`}
+                data-tooltip={`${week.label} · ${formatDuration(week.total)}\n${formatDuration(week.productive)} productive`}
               >
                 <div class="bar-seg prod" style="height: {prodPct}%"></div>
                 <div class="bar-seg other" style="height: {otherPct}%"></div>
@@ -298,7 +298,7 @@
             <div class="bar-col">
               <button
                 class="bar-stack"
-                data-tooltip={`${day.label}\n${formatDuration(day.total)} total · ${formatDuration(day.productive)} productive\nClick for details`}
+                data-tooltip={`${day.label} · ${formatDuration(day.total)}\n${formatDuration(day.productive)} productive`}
                 aria-label="Open timeline for {day.label}"
                 on:click={() => openTimelineForDate(day.date)}
               >

@@ -66,6 +66,14 @@ pub struct Settings {
     /// Per-category daily time goals (shown on the Dashboard).
     #[serde(default)]
     pub daily_goals: Vec<DailyGoal>,
+
+    /// UI theme: "system" (follow the OS), "light" or "dark".
+    #[serde(default = "default_appearance")]
+    pub appearance: String,
+}
+
+fn default_appearance() -> String {
+    "system".to_string()
 }
 
 impl Default for Settings {
@@ -111,6 +119,7 @@ impl Default for Settings {
             show_tray_icon: true,
             min_session_duration_secs: 10,
             daily_goals: Vec::new(),
+            appearance: default_appearance(),
         }
     }
 }

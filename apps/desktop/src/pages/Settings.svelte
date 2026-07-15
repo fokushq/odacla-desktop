@@ -11,7 +11,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getSettings, saveSettings, getDetectedApps, getRunningApps, exportData } from "$lib/api";
-  import type { Settings, TrackingMode } from "$lib/types";
+  import type { Settings, TrackingMode, Appearance } from "$lib/types";
+  import { applyAppearance } from "$lib/types";
+
+  const appearanceOptions: { value: Appearance; label: string }[] = [
+    { value: "system", label: "System" },
+    { value: "light", label: "Light" },
+    { value: "dark", label: "Dark" },
+  ];
 
   let settings: Settings | null = null;
   let detectedApps: string[] = [];   // historical — from DB sessions
@@ -193,6 +200,29 @@
       <div class="skeleton" style="height: 200px;"></div>
     </div>
   {:else if settings}
+    <!-- ─── Appearance ──────────────────────────────────────────── -->
+    <div class="card">
+      <h3 class="card-title">Appearance</h3>
+      <p class="card-desc">How Odacla looks. "System" follows your OS theme.</p>
+      <div class="seg">
+        {#each appearanceOptions as opt}
+          <button
+            class="seg-btn"
+            class:active={settings.appearance === opt.value}
+            on:click={() => {
+              if (settings) {
+                settings.appearance = opt.value;
+                applyAppearance(opt.value);
+              }
+            }}
+          >
+            {opt.label}
+          </button>
+        {/each}
+      </div>
+      <p class="seg-hint">Applies instantly — remember to Save to keep it.</p>
+    </div>
+
     <!-- ─── Tracking Mode ───────────────────────────────────────── -->
     <div class="card">
       <h3 class="card-title">Tracking Mode</h3>
@@ -827,4 +857,39 @@
   }
 
   .export-message.error { color: var(--danger); }
+
+  /* ─── Appearance segmented control ─────────────────────────────── */
+  .seg {
+    display: inline-flex;
+    gap: 4px;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+  }
+
+  .seg-btn {
+    padding: 7px 20px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background var(--transition), color var(--transition);
+  }
+
+  .seg-btn.active {
+    background: var(--surface);
+    color: var(--accent);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .seg-hint {
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--text-3);
+  }
 </style>

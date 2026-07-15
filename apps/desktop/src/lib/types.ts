@@ -88,6 +88,18 @@ export interface Settings {
   show_tray_icon: boolean;
   min_session_duration_secs: number;
   daily_goals: DailyGoal[];
+  appearance: Appearance;
+}
+
+/** UI theme preference */
+export type Appearance = "system" | "light" | "dark";
+
+/** Apply a theme preference to the document. "system" defers to the
+ *  OS via the prefers-color-scheme media query in App.svelte. */
+export function applyAppearance(appearance: Appearance) {
+  const root = document.documentElement;
+  if (appearance === "system") delete root.dataset.theme;
+  else root.dataset.theme = appearance;
 }
 
 /** Request to create a new rule (sent to Rust backend) */
@@ -157,8 +169,10 @@ export function formatDuration(totalSeconds: number): string {
   return `${seconds}s`;
 }
 
-/** Format an ISO timestamp to a time string (e.g., "14:32") */
+/** Format an ISO timestamp to a 24-hour time string (e.g., "14:32").
+ *  Fixed to 24h regardless of system locale — the hour axes and charts
+ *  are 24-hour, so mixed "02:15 AM" tooltips looked off. */
 export function formatTime(isoString: string): string {
   const date = new Date(isoString);
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 }

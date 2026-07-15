@@ -193,9 +193,9 @@
 
   function barTooltip(day: { total: number; segs: DaySeg[] }): string {
     const lines = day.segs
-      .slice(0, 4)
+      .slice(0, 3)
       .map((s) => `${categoryName(s.category)} ${formatDuration(Math.round(s.seconds))}`);
-    return [formatDuration(Math.round(day.total)), ...lines, "Click for details"].join("\n");
+    return [formatDuration(Math.round(day.total)), ...lines].join("\n");
   }
 
   // ─── Top apps — derived from today's sessions ─────────────────────

@@ -22,17 +22,19 @@
   import Rules from "./pages/Rules.svelte";
   import SettingsPage from "./pages/Settings.svelte";
   import { currentPage } from "./stores/navigation";
-  import { getCustomCategories } from "$lib/api";
-  import { setCustomCategoryColors } from "$lib/types";
+  import { getCustomCategories, getSettings } from "$lib/api";
+  import { setCustomCategoryColors, applyAppearance } from "$lib/types";
 
-  // Load custom category colors once at startup so charts and lists
-  // resolve them anywhere. The Rules page refreshes the registry after
-  // edits.
+  // Startup: load custom category colors (used by charts everywhere)
+  // and apply the saved theme preference. The Rules/Settings pages
+  // refresh these after edits.
   onMount(async () => {
     try {
-      setCustomCategoryColors(await getCustomCategories());
+      const [cats, settings] = await Promise.all([getCustomCategories(), getSettings()]);
+      setCustomCategoryColors(cats);
+      applyAppearance(settings.appearance ?? "system");
     } catch (e) {
-      console.error("Failed to load custom categories:", e);
+      console.error("Failed to load startup data:", e);
     }
   });
 
@@ -197,8 +199,11 @@
     --tooltip-text: #f5f5f7;
   }
 
+  /* Dark tokens apply when the OS is dark (unless the user forces
+     light) OR when the user explicitly picks dark in Settings. The
+     data-theme attribute is set by applyAppearance() in types.ts. */
   @media (prefers-color-scheme: dark) {
-    :global(:root) {
+    :global(:root:not([data-theme="light"])) {
       --bg: #1c1c1e;
       --surface: #28282b;
       --surface-2: #323236;
@@ -228,6 +233,37 @@
       --tooltip-bg: #f5f5f7;
       --tooltip-text: #1d1d1f;
     }
+  }
+
+  :global(:root[data-theme="dark"]) {
+      --bg: #1c1c1e;
+      --surface: #28282b;
+      --surface-2: #323236;
+      --surface-3: #3d3d42;
+      --sidebar-bg: #232326;
+
+      --border: rgba(255, 255, 255, 0.09);
+      --border-strong: rgba(255, 255, 255, 0.16);
+
+      --text-1: #f5f5f7;
+      --text-2: #b8b8bf;
+      --text-3: #85858c;
+
+      --accent: #0a84ff;
+      --accent-hover: #339dff;
+      --accent-soft: rgba(10, 132, 255, 0.16);
+      --accent-soft-strong: rgba(10, 132, 255, 0.24);
+
+      --danger: #ff6b6b;
+      --danger-soft: rgba(255, 107, 107, 0.14);
+      --success: #34d399;
+      --success-soft: rgba(52, 211, 153, 0.16);
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px -8px rgba(0, 0, 0, 0.4);
+      --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.35), 0 12px 32px -12px rgba(0, 0, 0, 0.5);
+
+      --tooltip-bg: #f5f5f7;
+      --tooltip-text: #1d1d1f;
   }
 
   /* ═══ Global Reset & Base ═══════════════════════════════════════ */
@@ -284,11 +320,12 @@
     transform: translateX(-50%);
     background: var(--tooltip-bg);
     color: var(--tooltip-text);
-    padding: 6px 11px;
-    border-radius: 7px;
-    font-size: 11.5px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
     font-weight: 500;
-    line-height: 1.45;
+    line-height: 1.4;
+    letter-spacing: 0.01em;
     white-space: pre-line;
     text-align: center;
     pointer-events: none;
