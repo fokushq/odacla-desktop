@@ -17,8 +17,11 @@
     getTodaySessions,
     getActiveSession,
     getRollupsInRange,
+    getSettings,
+    saveSettings,
+    getCustomCategories,
   } from "$lib/api";
-  import type { DailyRollup, Session, Category } from "$lib/types";
+  import type { DailyRollup, Session, Category, Settings, DailyGoal, CustomCategory } from "$lib/types";
   import {
     categoryColor,
     categoryName,
@@ -245,8 +248,92 @@
   // The reactive statement runs once on init too, so no onMount fetch needed.
   $: week, fetchData();
 
-  onMount(() => { pollInterval = setInterval(fetchData, 30_000); });
+  onMount(() => {
+    pollInterval = setInterval(fetchData, 30_000);
+    loadGoalData();
+  });
   onDestroy(() => { if (pollInterval) clearInterval(pollInterval); });
+
+  // ─── Daily goals ──────────────────────────────────────────────────
+  let appSettings: Settings | null = null;
+  let customCats: CustomCategory[] = [];
+  let newGoalCat = '"coding"';
+  let newGoalMinutes = 120;
+
+  const goalDurations: { value: number; label: string }[] = [
+    { value: 15, label: "15 min" },
+    { value: 30, label: "30 min" },
+    { value: 45, label: "45 min" },
+    { value: 60, label: "1 hour" },
+    { value: 90, label: "1.5 hours" },
+    { value: 120, label: "2 hours" },
+    { value: 180, label: "3 hours" },
+    { value: 240, label: "4 hours" },
+    { value: 300, label: "5 hours" },
+    { value: 360, label: "6 hours" },
+    { value: 480, label: "8 hours" },
+  ];
+
+  async function loadGoalData() {
+    try {
+      [appSettings, customCats] = await Promise.all([
+        getSettings(),
+        getCustomCategories().catch(() => [] as CustomCategory[]),
+      ]);
+    } catch (e) {
+      console.error("Failed to load goals:", e);
+    }
+  }
+
+  const builtinGoalCats: { value: string; label: string }[] = [
+    { value: '"study"', label: "Study" },
+    { value: '"coding"', label: "Coding" },
+    { value: '"note_taking"', label: "Note-taking" },
+    { value: '"productive"', label: "Productive" },
+    { value: '"communication"', label: "Communication" },
+  ];
+
+  $: goalCategories = [
+    ...builtinGoalCats,
+    ...customCats.map((c) => ({ value: JSON.stringify({ custom: c.name }), label: c.name })),
+  ];
+
+  function catKey(c: Category): string {
+    return typeof c === "string" ? c : `custom:${c.custom}`;
+  }
+
+  $: goals = appSettings?.daily_goals ?? [];
+
+  // Seconds spent today per category (session-derived, always fresh)
+  $: todayCatSeconds = (() => {
+    const map = new Map<string, number>();
+    for (const r of todayRollups) {
+      map.set(catKey(r.category), (map.get(catKey(r.category)) ?? 0) + r.total_seconds);
+    }
+    return map;
+  })();
+
+  async function persistGoals(updated: DailyGoal[]) {
+    if (!appSettings) return;
+    const next = { ...appSettings, daily_goals: updated };
+    try {
+      await saveSettings(next);
+      appSettings = next;
+    } catch (e) {
+      console.error("Failed to save goals:", e);
+    }
+  }
+
+  function addGoal() {
+    if (!appSettings) return;
+    const category: Category = JSON.parse(newGoalCat);
+    const rest = goals.filter((g) => catKey(g.category) !== catKey(category));
+    persistGoals([...rest, { category, target_minutes: newGoalMinutes }]);
+  }
+
+  function removeGoal(goal: DailyGoal) {
+    persistGoals(goals.filter((g) => catKey(g.category) !== catKey(goal.category)));
+  }
 
   function fmtHour(sec: number): string {
     const h = sec / 3600;
@@ -305,6 +392,91 @@
           </span>
           <span class="metric-label">currently</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Daily Goals -->
+    <div class="card goals-card">
+      <h3 class="card-title">Daily Goals</h3>
+      <p class="card-subtitle">Today's progress toward your targets</p>
+
+      {#if goals.length > 0}
+        <div class="goals-grid">
+          {#each goals as goal (catKey(goal.category))}
+            {@const done = todayCatSeconds.get(catKey(goal.category)) ?? 0}
+            {@const target = goal.target_minutes * 60}
+            {@const pct = target > 0 ? Math.min((done / target) * 100, 100) : 0}
+            {@const achieved = done >= target}
+            {@const catColor = categoryColor(goal.category)}
+            {@const ringColor = achieved ? "var(--success)" : catColor}
+            <div class="goal-item" class:achieved>
+              <!-- Activity-ring progress: 40x40 viewBox, r=16 -->
+              <svg class="goal-ring" viewBox="0 0 40 40" aria-hidden="true">
+                <!-- Track tinted with the category color, so identity
+                     shows even at 0% -->
+                <circle cx="20" cy="20" r="16" fill="none" stroke={achieved ? "var(--success-soft)" : catColor + "26"} stroke-width="4.5" />
+                <circle
+                  cx="20" cy="20" r="16" fill="none"
+                  stroke={ringColor}
+                  stroke-width="4.5"
+                  stroke-linecap="round"
+                  stroke-dasharray="{(pct / 100) * 100.53} 100.53"
+                  transform="rotate(-90 20 20)"
+                  class="goal-ring-arc"
+                />
+                {#if achieved}
+                  <path d="M13.5 20.5l4.2 4.2 8-8.5" fill="none" stroke="var(--success)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                {:else}
+                  <text x="20" y="21" text-anchor="middle" dominant-baseline="middle" class="goal-ring-text">
+                    {Math.round(pct)}%
+                  </text>
+                {/if}
+              </svg>
+
+              <div class="goal-info">
+                <div class="goal-head">
+                  <span class="goal-name">{categoryName(goal.category)}</span>
+                  <button class="goal-remove" title="Remove goal" on:click={() => removeGoal(goal)}>×</button>
+                </div>
+                <span class="goal-meta">
+                  {#if achieved}
+                    {formatDuration(Math.round(done))} — goal reached 🎉
+                  {:else}
+                    <strong class="goal-done">{formatDuration(Math.round(done))}</strong>
+                    <span class="goal-sep">/</span> {formatDuration(target)}
+                    <span class="goal-sep">·</span> {formatDuration(Math.max(target - Math.round(done), 0))} left
+                  {/if}
+                </span>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div class="goal-empty">
+          <svg class="goal-empty-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle
+              cx="12" cy="12" r="7.5"
+              stroke="currentColor" stroke-width="2.6" stroke-linecap="round"
+              stroke-dasharray="39.27 7.85"
+            />
+            <circle cx="18.5" cy="8.25" r="1.6" fill="currentColor" />
+          </svg>
+          <p>No goals yet — set a daily target and watch it fill up.</p>
+        </div>
+      {/if}
+
+      <div class="goal-add">
+        <select class="goal-select" bind:value={newGoalCat} aria-label="Goal category">
+          {#each goalCategories as cat}
+            <option value={cat.value}>{cat.label}</option>
+          {/each}
+        </select>
+        <select class="goal-select goal-duration" bind:value={newGoalMinutes} aria-label="Daily target">
+          {#each goalDurations as d}
+            <option value={d.value}>{d.label} / day</option>
+          {/each}
+        </select>
+        <button class="goal-btn" on:click={addGoal}>Set Goal</button>
       </div>
     </div>
 
@@ -457,6 +629,126 @@
   .metric-label { font-size: 10.5px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
 
   .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+  /* Daily Goals */
+  .goals-card { margin-bottom: 16px; }
+  .goals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .goal-item {
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: box-shadow var(--transition), border-color var(--transition), transform var(--transition);
+  }
+  .goal-item:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+  }
+  .goal-item.achieved {
+    border-color: var(--success-soft);
+    background: linear-gradient(135deg, var(--surface), var(--success-soft));
+  }
+
+  .goal-ring { width: 52px; height: 52px; flex-shrink: 0; }
+  .goal-ring-arc { transition: stroke-dasharray 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+  .goal-ring-text {
+    font-size: 10px;
+    font-weight: 700;
+    fill: var(--text-1);
+    font-variant-numeric: tabular-nums;
+  }
+  .goal-item.achieved .goal-ring {
+    animation: goal-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes goal-pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+  .goal-done { color: var(--text-1); font-weight: 600; }
+  .goal-sep { opacity: 0.55; padding: 0 1px; }
+
+  .goal-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .goal-head { display: flex; align-items: center; gap: 8px; }
+  .goal-name {
+    font-size: 13.5px; font-weight: 600; color: var(--text-1); flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .goal-remove {
+    border: none; background: transparent; color: var(--text-3);
+    font-size: 16px; cursor: pointer; line-height: 1; padding: 0 2px;
+    font-family: inherit; transition: color var(--transition);
+    opacity: 0;
+  }
+  .goal-item:hover .goal-remove { opacity: 1; }
+  .goal-remove:hover { color: var(--danger); }
+  .goal-meta { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+  .goal-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 18px 0 22px;
+    font-size: 13px;
+    color: var(--text-3);
+  }
+  .goal-empty-icon { width: 22px; height: 22px; opacity: 0.5; flex-shrink: 0; }
+  .goal-empty p { margin: 0; }
+
+  .goal-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .goal-select {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 34px;
+    padding: 0 30px 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-1);
+    background-color: var(--surface);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 13px;
+    cursor: pointer;
+    transition: border-color var(--transition), background-color var(--transition);
+  }
+  .goal-select:hover { border-color: var(--border-strong); }
+  .goal-select:focus { outline: none; border-color: var(--accent); }
+
+  .goal-btn {
+    height: 34px;
+    padding: 0 18px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+  .goal-btn:hover { background: var(--accent-hover); }
 
   /* Bar Chart */
   .bar-chart { display: flex; gap: 8px; height: 200px; margin-bottom: 12px; }

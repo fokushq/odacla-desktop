@@ -70,6 +70,12 @@ export interface DailyRollup {
 /** Mirrors fokus_domain::TrackingMode (serde rename_all = "snake_case") */
 export type TrackingMode = "exclude_list" | "include_list";
 
+/** Mirrors fokus_domain::settings::DailyGoal */
+export interface DailyGoal {
+  category: Category;
+  target_minutes: number;
+}
+
 /** Mirrors fokus_domain::Settings */
 export interface Settings {
   polling_interval_secs: number;
@@ -81,6 +87,7 @@ export interface Settings {
   start_on_boot: boolean;
   show_tray_icon: boolean;
   min_session_duration_secs: number;
+  daily_goals: DailyGoal[];
 }
 
 /** Request to create a new rule (sent to Rust backend) */
@@ -144,7 +151,7 @@ export function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = Math.floor(totalSeconds % 60);
-  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
   if (minutes > 0 && seconds > 0) return `${minutes}m ${seconds}s`;
   if (minutes > 0) return `${minutes}m`;
   return `${seconds}s`;

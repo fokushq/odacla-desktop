@@ -332,9 +332,29 @@ fn settings_roundtrip_preserves_custom_values() {
     let mut settings = Settings::default();
     settings.polling_interval_secs = 9;
     settings.excluded_apps.push("SecretApp".to_string());
+    settings.daily_goals.push(fokus_domain::DailyGoal {
+        category: Category::Coding,
+        target_minutes: 240,
+    });
 
     db.save_settings(&settings).unwrap();
     let loaded = db.get_settings().unwrap();
     assert_eq!(loaded.polling_interval_secs, 9);
     assert!(loaded.excluded_apps.contains(&"SecretApp".to_string()));
+    assert_eq!(loaded.daily_goals.len(), 1);
+    assert_eq!(loaded.daily_goals[0].target_minutes, 240);
+}
+
+#[test]
+fn settings_without_goals_field_defaults_to_empty() {
+    // Stored settings from older versions lack daily_goals — serde default
+    let db = db();
+    db.conn
+        .execute(
+            "UPDATE settings SET value = ?1 WHERE key = 'app_settings'",
+            [r#"{"polling_interval_secs":5,"idle_threshold_secs":300,"excluded_apps":[],"track_browser_urls":true,"start_on_boot":false,"show_tray_icon":true,"min_session_duration_secs":10}"#],
+        )
+        .unwrap();
+    let loaded = db.get_settings().unwrap();
+    assert!(loaded.daily_goals.is_empty());
 }

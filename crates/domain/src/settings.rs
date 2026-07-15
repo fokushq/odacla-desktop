@@ -2,6 +2,17 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::category::Category;
+
+/// A per-category daily time target (e.g. "4 hours of Coding a day").
+/// Progress is measured against the local day's tracked time.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DailyGoal {
+    pub category: Category,
+    /// Target minutes per day
+    pub target_minutes: u32,
+}
+
 /// Controls whether Fokus tracks everything except exclusions (default)
 /// or only whitelisted apps.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -51,6 +62,10 @@ pub struct Settings {
 
     /// Minimum session duration in seconds.
     pub min_session_duration_secs: u32,
+
+    /// Per-category daily time goals (shown on the Dashboard).
+    #[serde(default)]
+    pub daily_goals: Vec<DailyGoal>,
 }
 
 impl Default for Settings {
@@ -95,6 +110,7 @@ impl Default for Settings {
             start_on_boot: false,
             show_tray_icon: true,
             min_session_duration_secs: 10,
+            daily_goals: Vec::new(),
         }
     }
 }

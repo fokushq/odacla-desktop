@@ -3,6 +3,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use chrono::Utc;
 use tokio::sync::watch;
 use tracing::{debug, error, info, trace, warn};
 
@@ -20,12 +21,22 @@ use fokus_platform_linux::LinuxActivityDetector as PlatformDetector;
 #[cfg(target_os = "macos")]
 use fokus_platform_macos::MacosActivityDetector as PlatformDetector;
 
+/// A just-finalized session kept around briefly so a quick return to the
+/// same app can resume it instead of fragmenting history.
+struct RecentSession {
+    session: Session,
+    /// Whether finalize credited this session to the daily rollups
+    /// (short sessions are deleted and never rolled up).
+    was_rolled_up: bool,
+}
+
 /// The background collector service.
 pub struct Collector {
     detector: PlatformDetector,
     classifier: Arc<Mutex<Classifier>>,
     db: Arc<Mutex<Database>>,
     current_session: Option<Session>,
+    recent_session: Option<RecentSession>,
     settings: Arc<Mutex<Settings>>,
     polls_since_last_flush: u32,
     last_rollup_seconds: i64,
@@ -34,6 +45,11 @@ pub struct Collector {
 /// How often to flush the current session to the database.
 /// At 5-second polling intervals, 6 polls = every 30 seconds.
 const FLUSH_INTERVAL_POLLS: u32 = 6;
+
+/// Returning to the same app + category within this window resumes the
+/// previous session instead of starting a new one. Brief glances at
+/// excluded apps (or Odacla itself) then no longer fragment history.
+const MERGE_GAP_SECS: i64 = 60;
 
 impl Collector {
     /// Create a new collector with the given dependencies.
@@ -47,6 +63,7 @@ impl Collector {
             classifier,
             db,
             current_session: None,
+            recent_session: None,
             settings,
             polls_since_last_flush: 0,
             last_rollup_seconds: 0,
@@ -210,31 +227,74 @@ impl Collector {
                     self.finalize_current_session();
 
                     if !activity.is_idle {
-                        let new_session = Session::start(
-                            activity.app_name,
-                            activity.window_title,
-                            category,
-                            activity.url,
-                        );
-                        self.persist_new_session(&new_session);
-                        self.current_session = Some(new_session);
+                        self.start_or_resume_session(activity, category, poll_interval_secs);
                     }
                 }
             }
             None => {
                 if !activity.is_idle {
-                    debug!(app = %activity.app_name, category = %category, "New session");
-                    let new_session = Session::start(
-                        activity.app_name,
-                        activity.window_title,
-                        category,
-                        activity.url,
-                    );
-                    self.persist_new_session(&new_session);
-                    self.current_session = Some(new_session);
+                    self.start_or_resume_session(activity, category, poll_interval_secs);
                 }
             }
         }
+    }
+
+    /// Start a new session — or, if the same app + category was finalized
+    /// less than MERGE_GAP_SECS ago, resume that session so brief glances
+    /// elsewhere don't fragment history.
+    fn start_or_resume_session(&mut self, activity: Activity, category: Category, poll_interval_secs: u32) {
+        if let Some(recent) = self.recent_session.take() {
+            let same = recent.session.app_name == activity.app_name
+                && recent.session.category == category;
+            let fresh = recent
+                .session
+                .end_time
+                .map(|end| (Utc::now() - end).num_seconds() <= MERGE_GAP_SECS)
+                .unwrap_or(false);
+
+            if same && fresh {
+                let mut session = recent.session;
+                let prior_secs = session.duration().num_seconds();
+                session.end_time = None;
+                session.extend(activity.window_title, activity.idle_seconds, poll_interval_secs);
+
+                if let Ok(db) = self.db.lock() {
+                    if recent.was_rolled_up {
+                        // Finalize already credited the rollup with this
+                        // session's time and count. It's live again: undo
+                        // the count bump and continue seconds from where
+                        // the rollup left off.
+                        let date = session.start_time.with_timezone(&chrono::Local).date_naive();
+                        let _ = db.adjust_daily_rollup(date, &category, 0, -1);
+                        self.last_rollup_seconds = prior_secs;
+                        if let Err(e) = db.update_session(&session) {
+                            error!("Failed to reopen session: {}", e);
+                        }
+                    } else {
+                        // The short fragment was deleted on finalize —
+                        // resurrect it so it can grow into a real session.
+                        self.last_rollup_seconds = 0;
+                        if let Err(e) = db.insert_session(&session) {
+                            error!("Failed to reinsert session: {}", e);
+                        }
+                    }
+                }
+
+                debug!(app = %session.app_name, "Resumed recent session");
+                self.current_session = Some(session);
+                return;
+            }
+        }
+
+        debug!(app = %activity.app_name, category = %category, "New session");
+        let new_session = Session::start(
+            activity.app_name,
+            activity.window_title,
+            category,
+            activity.url,
+        );
+        self.persist_new_session(&new_session);
+        self.current_session = Some(new_session);
     }
 
     fn persist_new_session(&self, session: &Session) {
@@ -327,6 +387,13 @@ impl Collector {
             }
 
             self.last_rollup_seconds = 0;
+
+            // Remember it briefly — a quick return to the same app within
+            // MERGE_GAP_SECS resumes this session instead of starting anew.
+            self.recent_session = Some(RecentSession {
+                session,
+                was_rolled_up: duration_secs >= min_duration,
+            });
         }
     }
 
