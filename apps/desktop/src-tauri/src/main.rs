@@ -222,6 +222,7 @@ fn main() {
             commands::create_rule,
             commands::update_rule,
             commands::delete_rule,
+            commands::export_data,
             commands::get_custom_categories,
             commands::create_custom_category,
             commands::update_custom_category,

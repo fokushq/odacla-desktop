@@ -142,6 +142,18 @@ export async function deleteCustomCategory(id: string): Promise<void> {
   return invoke<void>("delete_custom_category", { id });
 }
 
+// ─── Data Export ────────────────────────────────────────────────────────────
+
+/** Export sessions in a local-date range to the Downloads folder.
+ *  Returns the written file's path. */
+export async function exportData(
+  start: string,
+  end: string,
+  format: "csv" | "json"
+): Promise<string> {
+  return invoke<string>("export_data", { start, end, format });
+}
+
 // ─── Settings ───────────────────────────────────────────────────────────────
 
 /** Fetch the current application settings */

@@ -180,6 +180,94 @@ pub fn delete_rule(rule_id: String, state: State<AppState>) -> Result<(), String
     Ok(())
 }
 
+// ─── Data export ────────────────────────────────────────────────────────────
+
+fn csv_escape(value: &str) -> String {
+    format!("\"{}\"", value.replace('"', "\"\""))
+}
+
+fn sessions_to_csv(sessions: &[Session]) -> String {
+    let mut out = String::from(
+        "start_time,end_time,app_name,window_title,category,url,duration_seconds,idle_seconds_total\n",
+    );
+    for s in sessions {
+        out.push_str(&format!(
+            "{},{},{},{},{},{},{},{}\n",
+            s.start_time.to_rfc3339(),
+            s.end_time.map(|e| e.to_rfc3339()).unwrap_or_default(),
+            csv_escape(&s.app_name),
+            csv_escape(&s.window_title),
+            csv_escape(s.category.display_name()),
+            csv_escape(s.url.as_deref().unwrap_or("")),
+            s.duration().num_seconds(),
+            s.idle_seconds_total,
+        ));
+    }
+    out
+}
+
+/// Export sessions in a local-date range to the Downloads folder as CSV
+/// or JSON. Returns the written file path. No dialogs, no network — the
+/// file lands in a predictable place the user already knows.
+#[tauri::command]
+pub fn export_data(
+    app: tauri::AppHandle,
+    start: String,
+    end: String,
+    format: String,
+    state: State<AppState>,
+) -> Result<String, String> {
+    use chrono::{Local, TimeZone};
+    use tauri::Manager;
+
+    let start_date = NaiveDate::parse_from_str(&start, "%Y-%m-%d")
+        .map_err(|e| format!("Invalid start date: {}", e))?;
+    let end_date = NaiveDate::parse_from_str(&end, "%Y-%m-%d")
+        .map_err(|e| format!("Invalid end date: {}", e))?;
+    if end_date < start_date {
+        return Err("End date is before start date".to_string());
+    }
+
+    // Local midnights → UTC instants, end exclusive (day after end_date)
+    let start_utc = Local
+        .from_local_datetime(&start_date.and_hms_opt(0, 0, 0).unwrap())
+        .single()
+        .ok_or("Ambiguous start date")?
+        .with_timezone(&Utc);
+    let end_utc = Local
+        .from_local_datetime(
+            &end_date
+                .succ_opt()
+                .ok_or("Invalid end date")?
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+        )
+        .single()
+        .ok_or("Ambiguous end date")?
+        .with_timezone(&Utc);
+
+    let sessions = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.get_sessions_in_range(start_utc, end_utc)
+            .map_err(|e| e.to_string())?
+    };
+
+    let (content, ext) = match format.as_str() {
+        "csv" => (sessions_to_csv(&sessions), "csv"),
+        "json" => (
+            serde_json::to_string_pretty(&sessions).map_err(|e| e.to_string())?,
+            "json",
+        ),
+        _ => return Err("Invalid format (expected csv or json)".to_string()),
+    };
+
+    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    let path = dir.join(format!("odacla-sessions-{start}_{end}.{ext}"));
+    std::fs::write(&path, content).map_err(|e| format!("Failed to write file: {}", e))?;
+
+    Ok(path.display().to_string())
+}
+
 // ─── Custom categories ──────────────────────────────────────────────────────
 
 /// Get all user-defined categories.

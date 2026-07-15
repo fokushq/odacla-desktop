@@ -10,7 +10,7 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getSettings, saveSettings, getDetectedApps, getRunningApps } from "$lib/api";
+  import { getSettings, saveSettings, getDetectedApps, getRunningApps, exportData } from "$lib/api";
   import type { Settings, TrackingMode } from "$lib/types";
 
   let settings: Settings | null = null;
@@ -149,6 +149,36 @@
     : [];
 
   onMount(fetchSettings);
+
+  // ─── Data export ─────────────────────────────────────────────────
+  function localDateStr(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  let exportEnd = localDateStr(new Date());
+  let exportStart = localDateStr(new Date(Date.now() - 29 * 86_400_000));
+  let exportFormat: "csv" | "json" = "csv";
+  let exporting = false;
+  let exportMessage = "";
+  let exportError = false;
+
+  async function handleExport() {
+    exporting = true;
+    exportMessage = "";
+    try {
+      const path = await exportData(exportStart, exportEnd, exportFormat);
+      exportError = false;
+      exportMessage = `Saved to ${path}`;
+    } catch (e) {
+      exportError = true;
+      exportMessage = String(e);
+    } finally {
+      exporting = false;
+    }
+  }
 </script>
 
 <div class="settings-page">
@@ -381,6 +411,38 @@
           <span>Show system tray icon</span>
         </label>
       </div>
+    </div>
+
+    <!-- ─── Data Export ────────────────────────────────────────── -->
+    <div class="card">
+      <h3 class="card-title">Data Export</h3>
+      <p class="card-desc">
+        Export your session history as CSV or JSON. The file is written to
+        your Downloads folder — your data never leaves this machine.
+      </p>
+      <div class="export-row">
+        <div class="export-field">
+          <span class="export-label">From</span>
+          <input type="date" class="export-input" bind:value={exportStart} max={exportEnd} />
+        </div>
+        <div class="export-field">
+          <span class="export-label">To</span>
+          <input type="date" class="export-input" bind:value={exportEnd} min={exportStart} />
+        </div>
+        <div class="export-field">
+          <span class="export-label">Format</span>
+          <select class="export-input" bind:value={exportFormat}>
+            <option value="csv">CSV</option>
+            <option value="json">JSON</option>
+          </select>
+        </div>
+        <button class="btn-primary export-btn" on:click={handleExport} disabled={exporting}>
+          {exporting ? "Exporting…" : "Export"}
+        </button>
+      </div>
+      {#if exportMessage}
+        <p class="export-message" class:error={exportError}>{exportMessage}</p>
+      {/if}
     </div>
 
     <!-- ─── Save Button ────────────────────────────────────────── -->
@@ -716,4 +778,53 @@
     flex-direction: column;
     gap: 16px;
   }
+
+  /* ─── Data export ──────────────────────────────────────────────── */
+  .export-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .export-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .export-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .export-input {
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-1);
+    background: var(--surface);
+    transition: border-color var(--transition);
+    color-scheme: light dark;
+  }
+
+  .export-input:hover { border-color: var(--border-strong); }
+  .export-input:focus { outline: none; border-color: var(--accent); }
+
+  .export-btn { height: 34px; padding: 0 20px; }
+
+  .export-message {
+    margin-top: 12px;
+    font-size: 12.5px;
+    color: var(--success);
+    word-break: break-all;
+  }
+
+  .export-message.error { color: var(--danger); }
 </style>
