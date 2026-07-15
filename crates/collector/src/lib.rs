@@ -49,7 +49,7 @@ const FLUSH_INTERVAL_POLLS: u32 = 6;
 /// Returning to the same app + category within this window resumes the
 /// previous session instead of starting a new one. Brief glances at
 /// excluded apps (or Odacla itself) then no longer fragment history.
-const MERGE_GAP_SECS: i64 = 60;
+const MERGE_GAP_SECS: i64 = 120;
 
 impl Collector {
     /// Create a new collector with the given dependencies.

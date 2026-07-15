@@ -12,6 +12,7 @@
 -->
 
 <script lang="ts">
+  import { onMount, onDestroy } from "svelte";
   import { getSessionsForDate, getTodaySessions } from "$lib/api";
   import type { Session, Category } from "$lib/types";
   import {
@@ -37,8 +38,8 @@
   let selectedDate: string = consumeTimelineDate() ?? localToday();
   let loading = true;
 
-  async function fetchSessions() {
-    loading = true;
+  async function fetchSessions(silent = false) {
+    if (!silent) loading = true;
     try {
       const today = localToday();
       sessions =
@@ -61,8 +62,13 @@
   // Total tracked time for the selected date
   $: totalSeconds = sessions.reduce((sum, s) => sum + sessionSeconds(s), 0);
 
-  // ─── Hour chart: sessions as colored blocks on a 24h track ─────
+  // ─── Hour chart: sessions as colored blocks on an auto-zoomed track ─
+  // The track zooms to the day's active hours (with padding and a
+  // minimum span) instead of a fixed 0–24 scale — otherwise a normal
+  // workday squeezes into a barcode strip surrounded by dead space.
   const DAY_MS = 86_400_000;
+  const HOUR_MS = 3_600_000;
+  const MIN_SPAN_HOURS = 6;
 
   /** Local midnight of the selected date, in ms. */
   $: dayStartMs = (() => {
@@ -70,35 +76,125 @@
     return new Date(y, m - 1, d).getTime();
   })();
 
-  $: hourBlocks = sessions
+  /** Session time spans clamped to the selected day. */
+  $: daySpans = sessions
     .map((s) => {
       const start = new Date(s.start_time).getTime();
       const end = s.end_time ? new Date(s.end_time).getTime() : Date.now();
-      // Clamp to the selected day (sessions can cross midnight)
       const from = Math.max(start, dayStartMs);
       const to = Math.min(end, dayStartMs + DAY_MS);
-      if (to <= from) return null;
-      return {
-        session: s,
-        left: ((from - dayStartMs) / DAY_MS) * 100,
-        width: Math.max(((to - from) / DAY_MS) * 100, 0.18),
-      };
+      return to > from ? { session: s, from, to } : null;
     })
     .filter((b): b is NonNullable<typeof b> => b !== null);
 
-  /** "Now" marker position — only when viewing today. */
-  $: nowPct =
-    selectedDate === localToday()
-      ? Math.min(((Date.now() - dayStartMs) / DAY_MS) * 100, 100)
-      : null;
+  /** Visible window: active range snapped to hours, padded, min span. */
+  $: viewRange = (() => {
+    const dayEnd = dayStartMs + DAY_MS;
+    if (daySpans.length === 0) return { start: dayStartMs, end: dayEnd };
 
-  function blockTooltip(b: { session: Session }): string {
-    const s = b.session;
-    const end = s.end_time ? formatTime(s.end_time) : "now";
-    return `${s.app_name} · ${categoryName(s.category)}\n${formatTime(s.start_time)} – ${end} · ${formatDuration(Math.round(sessionSeconds(s)))}`;
+    let earliest = Math.min(...daySpans.map((b) => b.from));
+    let latest = Math.max(...daySpans.map((b) => b.to));
+    if (selectedDate === localToday()) latest = Math.max(latest, Date.now());
+
+    // Snap outward to hour boundaries, then pad one hour each side
+    let start = dayStartMs + Math.floor((earliest - dayStartMs) / HOUR_MS - 1) * HOUR_MS;
+    let end = dayStartMs + Math.ceil((latest - dayStartMs) / HOUR_MS + 1) * HOUR_MS;
+    start = Math.max(dayStartMs, start);
+    end = Math.min(dayEnd, end);
+
+    // Keep a readable minimum span
+    const min = MIN_SPAN_HOURS * HOUR_MS;
+    if (end - start < min) {
+      start = Math.max(dayStartMs, end - min);
+      if (end - start < min) end = Math.min(dayEnd, start + min);
+    }
+    return { start, end };
+  })();
+
+  $: spanMs = viewRange.end - viewRange.start;
+  $: spanHours = Math.round(spanMs / HOUR_MS);
+
+  /** Visual coalescing: adjacent spans of the same app + category with
+   *  gaps under 3 minutes are drawn as ONE block — fragmented history
+   *  reads as calm, continuous work instead of a barcode. */
+  const VISUAL_GAP_MS = 3 * 60_000;
+
+  interface MergedSpan {
+    from: number;
+    to: number;
+    app: string;
+    category: Category;
+    count: number;
   }
 
-  const hourMarks = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+  function spanCatKey(c: Category): string {
+    return typeof c === "string" ? c : `custom:${c.custom}`;
+  }
+
+  $: mergedSpans = (() => {
+    const sorted = [...daySpans].sort((a, b) => a.from - b.from);
+    const out: MergedSpan[] = [];
+    for (const s of sorted) {
+      const last = out[out.length - 1];
+      if (
+        last &&
+        last.app === s.session.app_name &&
+        spanCatKey(last.category) === spanCatKey(s.session.category) &&
+        s.from - last.to <= VISUAL_GAP_MS
+      ) {
+        last.to = Math.max(last.to, s.to);
+        last.count++;
+      } else {
+        out.push({
+          from: s.from,
+          to: s.to,
+          app: s.session.app_name,
+          category: s.session.category,
+          count: 1,
+        });
+      }
+    }
+    return out;
+  })();
+
+  $: hourBlocks = mergedSpans.map((m) => ({
+    span: m,
+    left: ((m.from - viewRange.start) / spanMs) * 100,
+    width: Math.max(((m.to - m.from) / spanMs) * 100, 0.35),
+  }));
+
+  /** "Now" marker — only when today's current time is inside the window. */
+  $: nowPct = (() => {
+    if (selectedDate !== localToday()) return null;
+    const now = Date.now();
+    if (now < viewRange.start || now > viewRange.end) return null;
+    return ((now - viewRange.start) / spanMs) * 100;
+  })();
+
+  function msToTime(ms: number): string {
+    return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function blockTooltip(m: MergedSpan): string {
+    const isNow =
+      selectedDate === localToday() && Date.now() - m.to < 60_000 ? "now" : msToTime(m.to);
+    const sessions = m.count > 1 ? ` · ${m.count} sessions` : "";
+    return `${m.app} · ${categoryName(m.category)}\n${msToTime(m.from)} – ${isNow} · ${formatDuration(Math.round((m.to - m.from) / 1000))}${sessions}`;
+  }
+
+  // Tick density adapts to the zoom level
+  $: hourTicks = (() => {
+    const step = spanHours <= 8 ? 1 : spanHours <= 14 ? 2 : 3;
+    const startHour = Math.round((viewRange.start - dayStartMs) / HOUR_MS);
+    const ticks: { pct: number; label: string }[] = [];
+    for (let h = startHour; h <= startHour + spanHours; h += step) {
+      ticks.push({
+        pct: ((h - startHour) / spanHours) * 100,
+        label: String(h).padStart(2, "0"),
+      });
+    }
+    return ticks;
+  })();
 
   // ─── Per-app summary for the day ────────────────────────────────
   // "In this app you spent X" — apps labeled with their dominant category.
@@ -132,8 +228,18 @@
   $: maxAppSeconds = appSummary.length > 0 ? appSummary[0].seconds : 1;
 
   // Re-fetch when the date changes. Reactive statements also run once on
-  // init, so this covers the initial load — no onMount needed.
+  // init, so this covers the initial load.
   $: selectedDate, fetchSessions();
+
+  // Keep today's view live — new sessions and the "now" marker refresh
+  // every 30s, like the Dashboard.
+  let pollInterval: ReturnType<typeof setInterval>;
+  onMount(() => {
+    pollInterval = setInterval(() => {
+      if (selectedDate === localToday()) fetchSessions(true);
+    }, 30_000);
+  });
+  onDestroy(() => { if (pollInterval) clearInterval(pollInterval); });
 </script>
 
 <div class="timeline-page">
@@ -164,24 +270,29 @@
   {:else}
     <!-- ─── Hour Chart ─────────────────────────────────────────── -->
     <div class="summary-card">
-      <h3 class="summary-title">Day at a Glance</h3>
-      <div class="hour-track">
+      <div class="hour-head">
+        <h3 class="summary-title">Day at a Glance</h3>
+        <span class="hour-range">
+          {hourTicks[0]?.label}:00 – {hourTicks[hourTicks.length - 1]?.label}:00
+        </span>
+      </div>
+      <div class="hour-track" style="--tick-count: {spanHours}">
         {#each hourBlocks as block}
           <div
             class="hour-block"
-            style="left: {block.left}%; width: {block.width}%; background-color: {categoryColor(block.session.category)}"
-            data-tooltip={blockTooltip(block)}
+            style="left: {block.left}%; width: {block.width}%; background-color: {categoryColor(block.span.category)}"
+            data-tooltip={blockTooltip(block.span)}
           ></div>
         {/each}
         {#if nowPct !== null}
-          <div class="now-marker" style="left: {nowPct}%" title="Now"></div>
+          <div class="now-marker" style="left: {nowPct}%" title="Now">
+            <span class="now-dot"></span>
+          </div>
         {/if}
       </div>
       <div class="hour-labels">
-        {#each hourMarks as h}
-          <span class="hour-label" style="left: {(h / 24) * 100}%">
-            {h === 24 ? "24" : String(h).padStart(2, "0")}
-          </span>
+        {#each hourTicks as tick}
+          <span class="hour-label" style="left: {tick.pct}%">{tick.label}</span>
         {/each}
       </div>
     </div>
@@ -297,30 +408,42 @@
   }
 
   /* ─── Hour chart ───────────────────────────────────────────────── */
+  .hour-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .hour-range {
+    font-size: 11.5px;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+
   .hour-track {
     position: relative;
-    height: 46px;
+    height: 54px;
     background: var(--surface-2);
     border-radius: var(--radius-sm);
     /* NO overflow:hidden — it would clip the hover tooltips */
-    /* one subtle gridline per hour */
+    /* one subtle gridline per visible hour (count set inline) */
     background-image: repeating-linear-gradient(
       90deg,
       transparent 0,
-      transparent calc(100% / 24 - 1px),
-      var(--border) calc(100% / 24 - 1px),
-      var(--border) calc(100% / 24)
+      transparent calc(100% / var(--tick-count, 24) - 1px),
+      var(--border) calc(100% / var(--tick-count, 24) - 1px),
+      var(--border) calc(100% / var(--tick-count, 24))
     );
   }
 
   .hour-block {
     position: absolute;
-    top: 7px;
-    bottom: 7px;
-    border-radius: 4px;
+    top: 8px;
+    bottom: 8px;
+    border-radius: 3px;
     opacity: 0.92;
     transition: opacity var(--transition);
-    min-width: 2px;
+    min-width: 3px;
   }
 
   .hour-block:hover {
@@ -336,6 +459,17 @@
     width: 2px;
     background: var(--danger);
     z-index: 6;
+  }
+
+  .now-dot {
+    position: absolute;
+    top: -3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--danger);
   }
 
   .hour-labels {
