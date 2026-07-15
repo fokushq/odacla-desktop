@@ -1,7 +1,6 @@
 //! Rule queries.
 
 use fokus_domain::{Category, Rule, rule::MatchTarget};
-use uuid::Uuid;
 
 use crate::database::Database;
 use crate::error::StorageError;
@@ -16,12 +15,11 @@ impl Database {
 
         let rules = stmt
             .query_map([], |row| {
-                let id_str: String = row.get(0)?;
                 let target_str: String = row.get(3)?;
                 let category_json: String = row.get(4)?;
 
                 Ok(Rule {
-                    id: Uuid::parse_str(&id_str).unwrap_or_else(|_| Uuid::new_v4()),
+                    id: row.get(0)?,
                     name: row.get(1)?,
                     pattern: row.get(2)?,
                     target: match target_str.as_str() {
@@ -55,7 +53,7 @@ impl Database {
             "INSERT INTO rules (id, name, pattern, target, category, priority, enabled)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             rusqlite::params![
-                rule.id.to_string(),
+                rule.id,
                 rule.name,
                 rule.pattern,
                 target_str,
@@ -80,7 +78,7 @@ impl Database {
             "UPDATE rules SET name=?2, pattern=?3, target=?4, category=?5, priority=?6, enabled=?7
              WHERE id = ?1",
             rusqlite::params![
-                rule.id.to_string(),
+                rule.id,
                 rule.name,
                 rule.pattern,
                 target_str,
@@ -93,10 +91,10 @@ impl Database {
     }
 
     /// Delete a rule by ID.
-    pub fn delete_rule(&self, rule_id: &Uuid) -> Result<(), StorageError> {
+    pub fn delete_rule(&self, rule_id: &str) -> Result<(), StorageError> {
         self.conn.execute(
             "DELETE FROM rules WHERE id = ?1",
-            [rule_id.to_string()],
+            [rule_id],
         )?;
         Ok(())
     }

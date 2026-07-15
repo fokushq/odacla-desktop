@@ -33,6 +33,15 @@ CREATE TABLE IF NOT EXISTS rules (
 CREATE INDEX IF NOT EXISTS idx_rules_priority
     ON rules(priority);
 
+-- Custom Categories — user-defined categories with display colors.
+-- (Named custom_categories: an unused legacy "categories" table is
+--  dropped by an old migration, so that name must stay retired.)
+CREATE TABLE IF NOT EXISTS custom_categories (
+    id      TEXT PRIMARY KEY,
+    name    TEXT NOT NULL UNIQUE,
+    color   TEXT NOT NULL DEFAULT '#6366F1'  -- Hex color for UI
+);
+
 -- Daily Rollups — Pre-aggregated daily summaries
 CREATE TABLE IF NOT EXISTS daily_rollups (
     date            TEXT NOT NULL,       -- "YYYY-MM-DD" format

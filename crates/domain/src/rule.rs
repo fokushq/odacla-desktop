@@ -25,8 +25,12 @@ pub enum MatchTarget {
 /// category.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rule {
-    /// Unique identifier for this rule
-    pub id: Uuid,
+    /// Unique identifier for this rule.
+    /// Plain string, not a Uuid: seeded default rules use readable ids
+    /// like "default-080", and forcing them through Uuid parsing broke
+    /// updates/deletes (the parse fell back to a random id that matched
+    /// nothing in the database).
+    pub id: String,
 
     /// Human-readable name for the rule (e.g., "VS Code → Coding")
     pub name: String,
@@ -60,7 +64,7 @@ impl Rule {
         category: Category,
     ) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: Uuid::new_v4().to_string(),
             name,
             pattern,
             target,

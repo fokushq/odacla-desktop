@@ -1,6 +1,7 @@
 //! Category labels assigned to activities.
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// The built-in category types plus a user-defined custom option.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -58,6 +59,27 @@ impl Category {
             Category::Idle => "#9CA3AF",         // Gray
             Category::Uncategorized => "#D1D5DB", // Light gray
             Category::Custom(_) => "#6366F1",    // Indigo (default for custom)
+        }
+    }
+}
+
+/// A user-defined category. The `name` is what `Category::Custom(name)`
+/// references in rules and sessions; `color` is the display color the UI
+/// uses instead of the generic custom-category indigo.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CustomCategory {
+    pub id: Uuid,
+    pub name: String,
+    /// Hex color for the UI (e.g. "#6366F1")
+    pub color: String,
+}
+
+impl CustomCategory {
+    pub fn new(name: String, color: String) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name,
+            color,
         }
     }
 }

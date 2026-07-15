@@ -7,6 +7,7 @@
 )]
 
 mod commands;
+mod reclassify;
 mod state;
 
 use std::sync::{Arc, Mutex};
@@ -22,61 +23,6 @@ use tracing_subscriber::EnvFilter;
 use fokus_classifier::Classifier;
 use fokus_collector::Collector;
 use fokus_storage::Database;
-
-/// Re-run the classifier over closed sessions still marked Uncategorized.
-/// When a session gets a real category, its time is also moved between the
-/// matching daily rollups (only for sessions long enough to have been
-/// rolled up in the first place).
-fn reclassify_uncategorized(
-    db: &Database,
-    classifier: &Classifier,
-    min_session_secs: i64,
-) -> u32 {
-    use fokus_domain::{Activity, ActivityKind, Category};
-
-    let sessions = match db.get_closed_uncategorized_sessions() {
-        Ok(s) => s,
-        Err(e) => {
-            warn!("Failed to load uncategorized sessions: {}", e);
-            return 0;
-        }
-    };
-
-    let mut changed = 0;
-    for mut session in sessions {
-        let activity = Activity::new(
-            session.app_name.clone(),
-            session.window_title.clone(),
-            session.url.clone(),
-            ActivityKind::Desktop,
-            false,
-            0,
-        );
-        let new_category = classifier.classify(&activity);
-        if new_category == Category::Uncategorized {
-            continue;
-        }
-
-        let old_category = session.category.clone();
-        session.category = new_category.clone();
-        if let Err(e) = db.update_session(&session) {
-            warn!("Failed to reclassify session: {}", e);
-            continue;
-        }
-
-        let duration_secs = session.duration().num_seconds();
-        if duration_secs >= min_session_secs {
-            let date = session
-                .start_time
-                .with_timezone(&chrono::Local)
-                .date_naive();
-            let _ = db.adjust_daily_rollup(date, &old_category, -duration_secs, -1);
-            let _ = db.adjust_daily_rollup(date, &new_category, duration_secs, 1);
-        }
-        changed += 1;
-    }
-    changed
-}
 
 fn main() {
     tracing_subscriber::fmt()
@@ -172,14 +118,13 @@ fn main() {
 
             let classifier = Classifier::new(rules);
 
-            // Give historical Uncategorized sessions another pass with the
-            // current rule set — newly added rules (defaults or the user's
-            // own) then apply retroactively instead of leaving old data
-            // uncategorized forever.
+            // Bring session history in line with the current rule set —
+            // rules may have changed since the last run (new defaults,
+            // migrations, edits from a previous session).
             let min_secs = settings.min_session_duration_secs as i64;
-            match reclassify_uncategorized(&db, &classifier, min_secs) {
+            match reclassify::resync_sessions(&db, &classifier, min_secs) {
                 0 => {}
-                n => info!("Reclassified {} previously uncategorized session(s)", n),
+                n => info!("Resynced {} session(s) to the current rules", n),
             }
 
             let db = Arc::new(Mutex::new(db));
@@ -277,6 +222,10 @@ fn main() {
             commands::create_rule,
             commands::update_rule,
             commands::delete_rule,
+            commands::get_custom_categories,
+            commands::create_custom_category,
+            commands::update_custom_category,
+            commands::delete_custom_category,
             commands::get_settings,
             commands::save_settings,
             commands::get_active_session,

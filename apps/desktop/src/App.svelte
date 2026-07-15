@@ -14,6 +14,7 @@
 -->
 
 <script lang="ts">
+  import { onMount } from "svelte";
   import { fade } from "svelte/transition";
   import Dashboard from "./pages/Dashboard.svelte";
   import Timeline from "./pages/Timeline.svelte";
@@ -21,6 +22,19 @@
   import Rules from "./pages/Rules.svelte";
   import SettingsPage from "./pages/Settings.svelte";
   import { currentPage } from "./stores/navigation";
+  import { getCustomCategories } from "$lib/api";
+  import { setCustomCategoryColors } from "$lib/types";
+
+  // Load custom category colors once at startup so charts and lists
+  // resolve them anywhere. The Rules page refreshes the registry after
+  // edits.
+  onMount(async () => {
+    try {
+      setCustomCategoryColors(await getCustomCategories());
+    } catch (e) {
+      console.error("Failed to load custom categories:", e);
+    }
+  });
 
   // macOS uses an overlay title bar (traffic lights float over our UI),
   // so the sidebar needs top clearance and a drag strip. Other platforms

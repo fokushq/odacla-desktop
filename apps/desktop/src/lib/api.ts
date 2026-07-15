@@ -21,6 +21,7 @@ import type {
   Rule,
   Settings,
   CreateRuleRequest,
+  CustomCategory,
 } from "./types";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -117,6 +118,28 @@ export async function updateRule(rule: Rule): Promise<void> {
 /** Delete a rule by ID */
 export async function deleteRule(ruleId: string): Promise<void> {
   return invoke<void>("delete_rule", { ruleId });
+}
+
+// ─── Custom Categories ──────────────────────────────────────────────────────
+
+/** Fetch all user-defined categories */
+export async function getCustomCategories(): Promise<CustomCategory[]> {
+  return invoke<CustomCategory[]>("get_custom_categories");
+}
+
+/** Create a new custom category (name must be unique) */
+export async function createCustomCategory(name: string, color: string): Promise<CustomCategory> {
+  return invoke<CustomCategory>("create_custom_category", { name, color });
+}
+
+/** Update a custom category; renames cascade to rules and history */
+export async function updateCustomCategory(category: CustomCategory): Promise<void> {
+  return invoke<void>("update_custom_category", { category });
+}
+
+/** Delete a custom category (fails while rules still use it) */
+export async function deleteCustomCategory(id: string): Promise<void> {
+  return invoke<void>("delete_custom_category", { id });
 }
 
 // ─── Settings ───────────────────────────────────────────────────────────────

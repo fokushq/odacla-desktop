@@ -3,7 +3,7 @@
 use chrono::{Duration, Utc};
 use uuid::Uuid;
 
-use fokus_domain::{rule::MatchTarget, Category, Rule, Session, Settings};
+use fokus_domain::{rule::MatchTarget, Category, CustomCategory, Rule, Session, Settings};
 
 use crate::Database;
 
@@ -236,7 +236,92 @@ fn rule_crud_roundtrip() {
 #[test]
 fn deleting_unknown_rule_is_a_noop() {
     let db = db();
-    db.delete_rule(&Uuid::new_v4()).unwrap();
+    db.delete_rule(&Uuid::new_v4().to_string()).unwrap();
+}
+
+// ─── Custom categories ──────────────────────────────────────────────────────
+
+#[test]
+fn custom_category_crud_roundtrip() {
+    let db = db();
+    let mut cat = CustomCategory::new("Deep Work".to_string(), "#FF6B6B".to_string());
+    db.insert_custom_category(&cat).unwrap();
+
+    let all = db.get_custom_categories().unwrap();
+    assert_eq!(all.len(), 1);
+    assert_eq!(all[0].name, "Deep Work");
+    assert_eq!(all[0].color, "#FF6B6B");
+
+    // Duplicate name is rejected by the UNIQUE constraint
+    let dup = CustomCategory::new("Deep Work".to_string(), "#000000".to_string());
+    assert!(db.insert_custom_category(&dup).is_err());
+
+    // Color update
+    cat.color = "#00FF00".to_string();
+    db.update_custom_category(&cat).unwrap();
+    assert_eq!(db.get_custom_categories().unwrap()[0].color, "#00FF00");
+
+    // Delete
+    db.delete_custom_category(&cat.id).unwrap();
+    assert!(db.get_custom_categories().unwrap().is_empty());
+}
+
+#[test]
+fn custom_category_rename_cascades_to_rules_and_sessions() {
+    let db = db();
+    let mut cat = CustomCategory::new("Deep".to_string(), "#FF6B6B".to_string());
+    db.insert_custom_category(&cat).unwrap();
+
+    let rule = Rule::new(
+        "Deep rule".to_string(),
+        "focusapp".to_string(),
+        MatchTarget::AppName,
+        Category::Custom("Deep".to_string()),
+    );
+    db.insert_rule(&rule).unwrap();
+
+    let mut session = make_session("FocusApp");
+    session.category = Category::Custom("Deep".to_string());
+    db.insert_session(&session).unwrap();
+
+    cat.name = "Deep Work".to_string();
+    db.update_custom_category(&cat).unwrap();
+
+    let renamed = Category::Custom("Deep Work".to_string());
+    let fetched_rule = db
+        .get_all_rules()
+        .unwrap()
+        .into_iter()
+        .find(|r| r.id == rule.id)
+        .unwrap();
+    assert_eq!(fetched_rule.category, renamed);
+
+    let sessions = db
+        .get_sessions_in_range(Utc::now() - Duration::hours(1), Utc::now() + Duration::hours(1))
+        .unwrap();
+    assert_eq!(sessions[0].category, renamed);
+}
+
+#[test]
+fn custom_category_delete_blocked_while_rules_reference_it() {
+    let db = db();
+    let cat = CustomCategory::new("Deep".to_string(), "#FF6B6B".to_string());
+    db.insert_custom_category(&cat).unwrap();
+
+    let rule = Rule::new(
+        "Deep rule".to_string(),
+        "focusapp".to_string(),
+        MatchTarget::AppName,
+        Category::Custom("Deep".to_string()),
+    );
+    db.insert_rule(&rule).unwrap();
+
+    // Blocked while a rule uses it
+    assert!(db.delete_custom_category(&cat.id).is_err());
+
+    // Free to delete once the rule is gone
+    db.delete_rule(&rule.id).unwrap();
+    db.delete_custom_category(&cat.id).unwrap();
 }
 
 // ─── Settings ───────────────────────────────────────────────────────────────

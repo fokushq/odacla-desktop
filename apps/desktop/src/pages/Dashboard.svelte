@@ -108,20 +108,22 @@
   })();
 
   // ─── Weekly metrics — combine rollups (historical) + sessions (today) ─
+  // Today's session-derived total only belongs in the CURRENT week
+  // (weekOffset 0); past weeks are rollups only.
   $: weekTotalSeconds = (() => {
     // Sum rollups for days OTHER than today
     const rollupsExToday = weekRollups
       .filter((r) => r.date !== todayStr)
       .reduce((sum, r) => sum + r.total_seconds, 0);
     // Add today's session-derived total
-    return rollupsExToday + Math.round(todayTotalSeconds);
+    return rollupsExToday + (weekOffset === 0 ? Math.round(todayTotalSeconds) : 0);
   })();
 
   $: weekProductiveSeconds = (() => {
     const rollupsExToday = weekRollups
       .filter((r) => r.date !== todayStr && isProductive(r.category))
       .reduce((sum, r) => sum + r.total_seconds, 0);
-    return rollupsExToday + Math.round(todayProductiveSeconds);
+    return rollupsExToday + (weekOffset === 0 ? Math.round(todayProductiveSeconds) : 0);
   })();
 
   $: productivePercent = weekTotalSeconds > 0
@@ -129,39 +131,69 @@
 
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-  // ─── Daily bar chart data ─────────────────────────────────────────
-  // For today: use session data. For other days: use rollups.
+  // ─── Daily bar chart data — stacked by category ───────────────────
+  // Each day's bar is sliced per category in its own color, so custom
+  // categories show up exactly like everywhere else in the app.
+  // Today derives from live sessions; other days from rollups.
+  interface DaySeg {
+    category: Category;
+    seconds: number;
+  }
+
   $: dailyTotals = (() => {
-    const totals: { day: string; date: string; productive: number; other: number }[] = [];
+    const days: { day: string; date: string; total: number; segs: DaySeg[] }[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(week.start);
       d.setDate(d.getDate() + i);
       const dateStr = toDateStr(d);
 
-      let productive = 0;
-      let other = 0;
+      const byCat = new Map<string, DaySeg>();
+      const add = (category: Category, seconds: number) => {
+        if (seconds <= 0) return;
+        const key = typeof category === "string" ? category : `custom:${category.custom}`;
+        const existing = byCat.get(key);
+        if (existing) existing.seconds += seconds;
+        else byCat.set(key, { category, seconds });
+      };
 
       if (dateStr === todayStr) {
-        // Today: derive from live sessions
-        productive = Math.round(todayProductiveSeconds);
-        other = Math.round(todayTotalSeconds - todayProductiveSeconds);
+        for (const s of sessions) add(s.category, sessionDuration(s));
       } else {
-        // Historical: use pre-aggregated rollups
-        const dayRollups = weekRollups.filter((r) => r.date === dateStr);
-        productive = dayRollups
-          .filter((r) => isProductive(r.category))
-          .reduce((s, r) => s + r.total_seconds, 0);
-        other = dayRollups
-          .filter((r) => !isProductive(r.category))
-          .reduce((s, r) => s + r.total_seconds, 0);
+        for (const r of weekRollups.filter((r) => r.date === dateStr)) {
+          add(r.category, r.total_seconds);
+        }
       }
 
-      totals.push({ day: dayNames[i], date: dateStr, productive, other });
+      // Biggest slice at the bottom of the stack
+      const segs = [...byCat.values()].sort((a, b) => b.seconds - a.seconds);
+      const total = segs.reduce((sum, s) => sum + s.seconds, 0);
+      days.push({ day: dayNames[i], date: dateStr, total, segs });
     }
-    return totals;
+    return days;
   })();
 
-  $: maxDailySeconds = Math.max(...dailyTotals.map((d) => d.productive + d.other), 3600);
+  $: maxDailySeconds = Math.max(...dailyTotals.map((d) => d.total), 3600);
+
+  // Dynamic legend: categories present this week, largest first
+  $: weekLegend = (() => {
+    const byCat = new Map<string, DaySeg>();
+    for (const day of dailyTotals) {
+      for (const seg of day.segs) {
+        const key = typeof seg.category === "string" ? seg.category : `custom:${seg.category.custom}`;
+        const existing = byCat.get(key);
+        if (existing) existing.seconds += seg.seconds;
+        else byCat.set(key, { ...seg });
+      }
+    }
+    return [...byCat.values()].sort((a, b) => b.seconds - a.seconds).slice(0, 6);
+  })();
+
+  function barTooltip(day: { total: number; segs: DaySeg[] }): string {
+    const lines = day.segs
+      .slice(0, 4)
+      .map((s) => `${categoryName(s.category)} ${formatDuration(Math.round(s.seconds))}`);
+    return [formatDuration(Math.round(day.total)), ...lines, "Click for details"].join("\n");
+  }
 
   // ─── Top apps — derived from today's sessions ─────────────────────
   // Each app is labeled with its DOMINANT category (most seconds), not
@@ -289,17 +321,19 @@
           </div>
           <div class="bars-area">
             {#each dailyTotals as day}
-              {@const prodPct = maxDailySeconds > 0 ? (day.productive / maxDailySeconds) * 100 : 0}
-              {@const otherPct = maxDailySeconds > 0 ? (day.other / maxDailySeconds) * 100 : 0}
               <div class="bar-col">
                 <button
                   class="bar-stack"
-                  data-tooltip={`${formatDuration(day.productive + day.other)}\nProductive ${formatDuration(day.productive)} · Other ${formatDuration(day.other)}\nClick for details`}
+                  data-tooltip={barTooltip(day)}
                   aria-label="Open timeline for {day.day}"
                   on:click={() => openTimelineForDate(day.date)}
                 >
-                  <div class="bar-seg prod" style="height: {prodPct}%"></div>
-                  <div class="bar-seg other" style="height: {otherPct}%"></div>
+                  {#each day.segs as seg}
+                    <div
+                      class="bar-seg"
+                      style="height: {(seg.seconds / maxDailySeconds) * 100}%; background-color: {categoryColor(seg.category)}"
+                    ></div>
+                  {/each}
                 </button>
                 <span class="bar-day">{day.day}</span>
               </div>
@@ -307,8 +341,13 @@
           </div>
         </div>
         <div class="chart-legend">
-          <span class="leg"><span class="dot prod-dot"></span> Productive <span class="leg-detail">(Coding, Study, etc.)</span></span>
-          <span class="leg"><span class="dot other-dot"></span> Other <span class="leg-detail">(Entertainment, Uncategorized)</span></span>
+          {#each weekLegend as item}
+            <span class="leg">
+              <span class="dot" style="background-color: {categoryColor(item.category)}"></span>
+              {categoryName(item.category)}
+              <span class="leg-detail">{formatDuration(Math.round(item.seconds))}</span>
+            </span>
+          {/each}
         </div>
       </div>
 
@@ -437,15 +476,11 @@
   .bar-stack:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .bar-stack:hover { opacity: 0.75; }
   .bar-seg { transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-  .bar-seg.prod { background: var(--accent); }
-  .bar-seg.other { background: var(--accent-soft-strong); }
   .bar-day { font-size: 11.5px; color: var(--text-3); margin-top: 8px; }
-  .chart-legend { display: flex; gap: 20px; font-size: 12px; color: var(--text-2); flex-wrap: wrap; }
+  .chart-legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-2); flex-wrap: wrap; }
   .leg-detail { color: var(--text-3); font-size: 11px; }
   .leg { display: flex; align-items: center; gap: 6px; }
   .dot { width: 10px; height: 10px; border-radius: 3px; }
-  .prod-dot { background: var(--accent); }
-  .other-dot { background: var(--accent-soft-strong); }
 
   /* App List */
   .app-list { list-style: none; }

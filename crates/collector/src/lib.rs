@@ -102,9 +102,14 @@ impl Collector {
             Ok(Some(info)) => info,
             Ok(None) => {
                 trace!("No active window detected");
+                // The user left every tracked window — close the open
+                // session, otherwise it keeps accumulating time.
+                self.finalize_current_session();
                 return;
             }
             Err(e) => {
+                // Transient platform error: keep the session open so a
+                // brief glitch doesn't fragment an ongoing block.
                 warn!("Failed to get active window: {}", e);
                 return;
             }
@@ -125,6 +130,9 @@ impl Collector {
                 || title_lower.contains("fokus")
             {
                 trace!(app = %window_info.app_name, "Skipping self");
+                // Close the open session — time spent inside Odacla must
+                // not keep counting toward the previously focused app.
+                self.finalize_current_session();
                 return;
             }
         }
@@ -137,12 +145,16 @@ impl Collector {
             TrackingMode::ExcludeList => {
                 if Self::matches_list(&window_info.app_name, &window_info.window_title, &settings.excluded_apps) {
                     debug!(app = %window_info.app_name, mode = "exclude", "Skipping excluded app");
+                    // Time in excluded apps must not leak into the
+                    // previously focused app's open session.
+                    self.finalize_current_session();
                     return;
                 }
             }
             TrackingMode::IncludeList => {
                 if !Self::matches_list(&window_info.app_name, &window_info.window_title, &settings.included_apps) {
                     trace!(app = %window_info.app_name, mode = "include", "Not in whitelist");
+                    self.finalize_current_session();
                     return;
                 }
             }

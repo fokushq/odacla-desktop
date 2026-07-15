@@ -4,7 +4,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use tauri::State;
 use uuid::Uuid;
 
-use fokus_domain::{Category, Rule, Session, Settings, rule::MatchTarget};
+use fokus_domain::{Category, CustomCategory, Rule, Session, Settings, rule::MatchTarget};
 use fokus_platform::ActivityDetector;
 use fokus_storage::queries::rollups::DailyRollup;
 
@@ -18,6 +18,24 @@ use fokus_platform_linux::LinuxActivityDetector as PlatformDetector;
 use fokus_platform_macos::MacosActivityDetector as PlatformDetector;
 
 use crate::state::AppState;
+
+/// After any rule/category mutation: re-run history through the current
+/// rules so sessions, charts and rollups immediately reflect the change.
+fn resync_history(
+    db: &fokus_storage::Database,
+    classifier: &fokus_classifier::Classifier,
+    state: &State<AppState>,
+) {
+    let min_secs = state
+        .settings
+        .lock()
+        .map(|s| s.min_session_duration_secs as i64)
+        .unwrap_or(10);
+    let changed = crate::reclassify::resync_sessions(db, classifier, min_secs);
+    if changed > 0 {
+        tracing::info!("Resynced {} session(s) after rule change", changed);
+    }
+}
 
 /// Get sessions within an absolute UTC datetime range.
 /// The frontend computes the range from *local* midnight boundaries, so
@@ -127,6 +145,7 @@ pub fn create_rule(request: CreateRuleRequest, state: State<AppState>) -> Result
     let rules = db.get_all_rules().map_err(|e| e.to_string())?;
     let mut classifier = state.classifier.lock().map_err(|e| e.to_string())?;
     classifier.update_rules(rules);
+    resync_history(&db, &classifier, &state);
 
     Ok(rule)
 }
@@ -141,6 +160,7 @@ pub fn update_rule(rule: Rule, state: State<AppState>) -> Result<(), String> {
     let rules = db.get_all_rules().map_err(|e| e.to_string())?;
     let mut classifier = state.classifier.lock().map_err(|e| e.to_string())?;
     classifier.update_rules(rules);
+    resync_history(&db, &classifier, &state);
 
     Ok(())
 }
@@ -148,18 +168,77 @@ pub fn update_rule(rule: Rule, state: State<AppState>) -> Result<(), String> {
 /// Delete a rule by ID.
 #[tauri::command]
 pub fn delete_rule(rule_id: String, state: State<AppState>) -> Result<(), String> {
-    let uuid = Uuid::parse_str(&rule_id)
-        .map_err(|e| format!("Invalid UUID: {}", e))?;
-
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.delete_rule(&uuid).map_err(|e| e.to_string())?;
+    db.delete_rule(&rule_id).map_err(|e| e.to_string())?;
 
     // Refresh the classifier
     let rules = db.get_all_rules().map_err(|e| e.to_string())?;
     let mut classifier = state.classifier.lock().map_err(|e| e.to_string())?;
     classifier.update_rules(rules);
+    resync_history(&db, &classifier, &state);
 
     Ok(())
+}
+
+// ─── Custom categories ──────────────────────────────────────────────────────
+
+/// Get all user-defined categories.
+#[tauri::command]
+pub fn get_custom_categories(state: State<AppState>) -> Result<Vec<CustomCategory>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_custom_categories().map_err(|e| e.to_string())
+}
+
+/// Create a new custom category (name must be unique).
+#[tauri::command]
+pub fn create_custom_category(
+    name: String,
+    color: String,
+    state: State<AppState>,
+) -> Result<CustomCategory, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("Category name cannot be empty".to_string());
+    }
+
+    let category = CustomCategory::new(name, color);
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.insert_custom_category(&category)
+        .map_err(|e| e.to_string())?;
+    Ok(category)
+}
+
+/// Update a custom category's name/color. Renames cascade to rules,
+/// sessions and rollups; the classifier is refreshed so renamed rules
+/// keep matching.
+#[tauri::command]
+pub fn update_custom_category(
+    category: CustomCategory,
+    state: State<AppState>,
+) -> Result<(), String> {
+    if category.name.trim().is_empty() {
+        return Err("Category name cannot be empty".to_string());
+    }
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.update_custom_category(&category)
+        .map_err(|e| e.to_string())?;
+
+    let rules = db.get_all_rules().map_err(|e| e.to_string())?;
+    let mut classifier = state.classifier.lock().map_err(|e| e.to_string())?;
+    classifier.update_rules(rules);
+    resync_history(&db, &classifier, &state);
+
+    Ok(())
+}
+
+/// Delete a custom category. Fails with a friendly message while rules
+/// still reference it.
+#[tauri::command]
+pub fn delete_custom_category(id: String, state: State<AppState>) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.delete_custom_category(&uuid).map_err(|e| e.to_string())
 }
 
 /// Get the current application settings.

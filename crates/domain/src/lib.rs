@@ -8,7 +8,7 @@ pub mod settings;
 
 // Re-export commonly used types at the crate root.
 pub use activity::{Activity, ActivityKind};
-pub use category::Category;
+pub use category::{Category, CustomCategory};
 pub use rule::Rule;
 pub use session::Session;
 pub use settings::{Settings, TrackingMode};

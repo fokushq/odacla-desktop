@@ -52,6 +52,13 @@ export interface Rule {
   enabled: boolean;
 }
 
+/** Mirrors fokus_domain::CustomCategory */
+export interface CustomCategory {
+  id: string;
+  name: string;
+  color: string;   // hex, e.g. "#6366F1"
+}
+
 /** Mirrors fokus_storage::queries::rollups::DailyRollup */
 export interface DailyRollup {
   date: string;
@@ -87,10 +94,20 @@ export interface CreateRuleRequest {
 
 // ─── Helper functions ───────────────────────────────────────────────────────
 
+/** Registry of custom-category colors (name → hex).
+ *  Loaded at startup and refreshed whenever the user edits categories,
+ *  so categoryColor() can resolve custom colors anywhere in the UI. */
+let customCategoryColors: Record<string, string> = {};
+
+export function setCustomCategoryColors(categories: CustomCategory[]) {
+  customCategoryColors = Object.fromEntries(categories.map((c) => [c.name, c.color]));
+}
+
 /** Map a Category to its display color (same colors as Rust side).
  *  Keys must be snake_case to match Rust's serde serialization. */
 export function categoryColor(category: Category): string {
-  if (typeof category === "object" && "custom" in category) return "#6366F1";
+  if (typeof category === "object" && "custom" in category)
+    return customCategoryColors[category.custom] ?? "#6366F1";
   const colors: Record<string, string> = {
     study: "#3B82F6",
     coding: "#8B5CF6",
