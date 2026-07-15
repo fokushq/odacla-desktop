@@ -61,6 +61,45 @@
   // Total tracked time for the selected date
   $: totalSeconds = sessions.reduce((sum, s) => sum + sessionSeconds(s), 0);
 
+  // ─── Hour chart: sessions as colored blocks on a 24h track ─────
+  const DAY_MS = 86_400_000;
+
+  /** Local midnight of the selected date, in ms. */
+  $: dayStartMs = (() => {
+    const [y, m, d] = selectedDate.split("-").map(Number);
+    return new Date(y, m - 1, d).getTime();
+  })();
+
+  $: hourBlocks = sessions
+    .map((s) => {
+      const start = new Date(s.start_time).getTime();
+      const end = s.end_time ? new Date(s.end_time).getTime() : Date.now();
+      // Clamp to the selected day (sessions can cross midnight)
+      const from = Math.max(start, dayStartMs);
+      const to = Math.min(end, dayStartMs + DAY_MS);
+      if (to <= from) return null;
+      return {
+        session: s,
+        left: ((from - dayStartMs) / DAY_MS) * 100,
+        width: Math.max(((to - from) / DAY_MS) * 100, 0.18),
+      };
+    })
+    .filter((b): b is NonNullable<typeof b> => b !== null);
+
+  /** "Now" marker position — only when viewing today. */
+  $: nowPct =
+    selectedDate === localToday()
+      ? Math.min(((Date.now() - dayStartMs) / DAY_MS) * 100, 100)
+      : null;
+
+  function blockTooltip(b: { session: Session }): string {
+    const s = b.session;
+    const end = s.end_time ? formatTime(s.end_time) : "now";
+    return `${s.app_name} · ${categoryName(s.category)}\n${formatTime(s.start_time)} – ${end} · ${formatDuration(Math.round(sessionSeconds(s)))}`;
+  }
+
+  const hourMarks = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+
   // ─── Per-app summary for the day ────────────────────────────────
   // "In this app you spent X" — apps labeled with their dominant category.
   $: appSummary = (() => {
@@ -123,6 +162,30 @@
       hint="Pick another day, or keep using your computer — Odacla is tracking in the background."
     />
   {:else}
+    <!-- ─── Hour Chart ─────────────────────────────────────────── -->
+    <div class="summary-card">
+      <h3 class="summary-title">Day at a Glance</h3>
+      <div class="hour-track">
+        {#each hourBlocks as block}
+          <div
+            class="hour-block"
+            style="left: {block.left}%; width: {block.width}%; background-color: {categoryColor(block.session.category)}"
+            data-tooltip={blockTooltip(block)}
+          ></div>
+        {/each}
+        {#if nowPct !== null}
+          <div class="now-marker" style="left: {nowPct}%" title="Now"></div>
+        {/if}
+      </div>
+      <div class="hour-labels">
+        {#each hourMarks as h}
+          <span class="hour-label" style="left: {(h / 24) * 100}%">
+            {h === 24 ? "24" : String(h).padStart(2, "0")}
+          </span>
+        {/each}
+      </div>
+    </div>
+
     <!-- ─── Per-App Summary ────────────────────────────────────── -->
     <div class="summary-card">
       <h3 class="summary-title">Applications</h3>
@@ -231,6 +294,62 @@
   .date-picker:focus {
     outline: none;
     border-color: var(--accent);
+  }
+
+  /* ─── Hour chart ───────────────────────────────────────────────── */
+  .hour-track {
+    position: relative;
+    height: 46px;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    /* NO overflow:hidden — it would clip the hover tooltips */
+    /* one subtle gridline per hour */
+    background-image: repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(100% / 24 - 1px),
+      var(--border) calc(100% / 24 - 1px),
+      var(--border) calc(100% / 24)
+    );
+  }
+
+  .hour-block {
+    position: absolute;
+    top: 7px;
+    bottom: 7px;
+    border-radius: 4px;
+    opacity: 0.92;
+    transition: opacity var(--transition);
+    min-width: 2px;
+  }
+
+  .hour-block:hover {
+    opacity: 1;
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--border-strong);
+    z-index: 5;
+  }
+
+  .now-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--danger);
+    z-index: 6;
+  }
+
+  .hour-labels {
+    position: relative;
+    height: 18px;
+    margin-top: 6px;
+  }
+
+  .hour-label {
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: 10.5px;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
   }
 
   /* ─── Per-App Summary ──────────────────────────────────────────── */

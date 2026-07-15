@@ -120,15 +120,15 @@ impl Collector {
         // tracking itself pollutes the data with constant self-referential
         // sessions. In IncludeList mode the excluded_apps list is skipped, so
         // without this check the app would track itself in whitelist mode.
+        //
+        // IMPORTANT: match the APP NAME only — never the window title.
+        // Any window merely *mentioning* the product (a chat about Odacla,
+        // a repo named odacla-desktop, a browser tab) would otherwise be
+        // misdetected as self and fragment its session on every poll.
         // "fokus" is kept for pre-rename builds/installs.
         {
             let app_lower = window_info.app_name.to_lowercase();
-            let title_lower = window_info.window_title.to_lowercase();
-            if app_lower.contains("odacla")
-                || title_lower.contains("odacla")
-                || app_lower.contains("fokus")
-                || title_lower.contains("fokus")
-            {
+            if app_lower.contains("odacla") || app_lower.contains("fokus") {
                 trace!(app = %window_info.app_name, "Skipping self");
                 // Close the open session — time spent inside Odacla must
                 // not keep counting toward the previously focused app.
