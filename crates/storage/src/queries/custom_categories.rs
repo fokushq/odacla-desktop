@@ -1,6 +1,6 @@
 //! Custom category queries.
 
-use fokus_domain::{Category, CustomCategory};
+use odacla_domain::{Category, CustomCategory};
 use uuid::Uuid;
 
 use crate::database::Database;

@@ -844,95 +844,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
-name = "fokus-classifier"
-version = "0.1.0"
-dependencies = [
- "fokus-domain",
- "tracing",
-]
-
-[[package]]
-name = "fokus-collector"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "fokus-classifier",
- "fokus-domain",
- "fokus-platform",
- "fokus-platform-linux",
- "fokus-platform-macos",
- "fokus-platform-windows",
- "fokus-storage",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "fokus-domain"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "fokus-platform"
-version = "0.1.0"
-dependencies = [
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "fokus-platform-linux"
-version = "0.1.0"
-dependencies = [
- "fokus-platform",
- "tracing",
- "x11rb",
-]
-
-[[package]]
-name = "fokus-platform-macos"
-version = "0.1.0"
-dependencies = [
- "core-foundation",
- "fokus-platform",
- "tracing",
-]
-
-[[package]]
-name = "fokus-platform-windows"
-version = "0.1.0"
-dependencies = [
- "fokus-platform",
- "tracing",
- "windows 0.58.0",
-]
-
-[[package]]
-name = "fokus-storage"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "fokus-domain",
- "rusqlite",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "fokus-sync-contracts"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2321,18 +2232,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "odacla-classifier"
+version = "0.1.0"
+dependencies = [
+ "odacla-domain",
+ "tracing",
+]
+
+[[package]]
+name = "odacla-collector"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "odacla-classifier",
+ "odacla-domain",
+ "odacla-platform",
+ "odacla-platform-linux",
+ "odacla-platform-macos",
+ "odacla-platform-windows",
+ "odacla-storage",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "odacla-desktop"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "fokus-classifier",
- "fokus-collector",
- "fokus-domain",
- "fokus-platform",
- "fokus-platform-linux",
- "fokus-platform-macos",
- "fokus-platform-windows",
- "fokus-storage",
+ "odacla-classifier",
+ "odacla-collector",
+ "odacla-domain",
+ "odacla-platform",
+ "odacla-platform-linux",
+ "odacla-platform-macos",
+ "odacla-platform-windows",
+ "odacla-storage",
  "serde",
  "serde_json",
  "tauri",
@@ -2343,6 +2279,70 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "odacla-domain"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "odacla-platform"
+version = "0.1.0"
+dependencies = [
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "odacla-platform-linux"
+version = "0.1.0"
+dependencies = [
+ "odacla-platform",
+ "tracing",
+ "x11rb",
+]
+
+[[package]]
+name = "odacla-platform-macos"
+version = "0.1.0"
+dependencies = [
+ "core-foundation",
+ "odacla-platform",
+ "tracing",
+]
+
+[[package]]
+name = "odacla-platform-windows"
+version = "0.1.0"
+dependencies = [
+ "odacla-platform",
+ "tracing",
+ "windows 0.58.0",
+]
+
+[[package]]
+name = "odacla-storage"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "odacla-domain",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "odacla-sync-contracts"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

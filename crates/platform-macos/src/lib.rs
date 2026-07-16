@@ -7,7 +7,7 @@ mod quartz;
 pub use quartz::MacosActivityDetector;
 
 // Re-export shared types so consumers can use them through this crate.
-pub use fokus_platform::{ActivityDetector, PlatformError, WindowInfo};
+pub use odacla_platform::{ActivityDetector, PlatformError, WindowInfo};
 
 /// Development stub for non-macOS platforms (e.g. building on Windows).
 #[cfg(not(target_os = "macos"))]

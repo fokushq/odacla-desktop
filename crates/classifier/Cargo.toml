@@ -1,8 +1,8 @@
 [package]
-name = "fokus-classifier"
+name = "odacla-classifier"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-fokus-domain = { path = "../domain" }
+odacla-domain = { path = "../domain" }
 tracing = { workspace = true }

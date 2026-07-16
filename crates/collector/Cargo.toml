@@ -1,23 +1,23 @@
 [package]
-name = "fokus-collector"
+name = "odacla-collector"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-fokus-domain = { path = "../domain" }
-fokus-classifier = { path = "../classifier" }
-fokus-platform = { path = "../platform" }
-fokus-storage = { path = "../storage" }
+odacla-domain = { path = "../domain" }
+odacla-classifier = { path = "../classifier" }
+odacla-platform = { path = "../platform" }
+odacla-storage = { path = "../storage" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-fokus-platform-windows = { path = "../platform-windows" }
+odacla-platform-windows = { path = "../platform-windows" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-fokus-platform-linux = { path = "../platform-linux" }
+odacla-platform-linux = { path = "../platform-linux" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-fokus-platform-macos = { path = "../platform-macos" }
+odacla-platform-macos = { path = "../platform-macos" }

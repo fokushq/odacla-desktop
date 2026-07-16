@@ -1,5 +1,5 @@
 [package]
-name = "fokus-platform"
+name = "odacla-platform"
 version.workspace = true
 edition.workspace = true
 

@@ -1,6 +1,6 @@
 //! Rule-based activity classification engine.
 
-use fokus_domain::{Activity, Category, Rule};
+use odacla_domain::{Activity, Category, Rule};
 use tracing::trace;
 
 /// The classification engine.
@@ -57,7 +57,7 @@ impl Classifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fokus_domain::{Activity, ActivityKind, rule::MatchTarget};
+    use odacla_domain::{Activity, ActivityKind, rule::MatchTarget};
 
     /// Helper to create a test activity
     fn make_activity(app: &str, title: &str, url: Option<&str>) -> Activity {

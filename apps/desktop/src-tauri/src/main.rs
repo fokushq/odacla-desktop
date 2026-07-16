@@ -20,16 +20,16 @@ use tokio::sync::watch;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
-use fokus_classifier::Classifier;
-use fokus_collector::Collector;
-use fokus_domain::TrackingMode;
-use fokus_storage::Database;
+use odacla_classifier::Classifier;
+use odacla_collector::Collector;
+use odacla_domain::TrackingMode;
+use odacla_storage::Database;
 
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info,fokus=debug")),
+                .unwrap_or_else(|_| EnvFilter::new("info,odacla=debug")),
         )
         .init();
 

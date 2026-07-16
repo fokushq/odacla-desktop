@@ -206,7 +206,7 @@ Contributions are welcome! Please open an issue first to discuss what you'd like
 ### Adding a new platform
 
 1. Create a new crate under `crates/platform-<os>/`
-2. Implement the `ActivityDetector` trait from `fokus-platform`
+2. Implement the `ActivityDetector` trait from `odacla-platform`
 3. Add `cfg(target_os)` entries in `collector/src/lib.rs` and `src-tauri/src/commands.rs`
 4. Add the crate to the workspace `Cargo.toml`
 

@@ -42,16 +42,16 @@ Odacla is a lightweight, privacy-first desktop time tracker built with Rust + Ta
 
 | Crate | Role |
 |-------|------|
-| `fokus-domain` | Core data models (Activity, Session, Rule, Category, Settings). Zero external deps. |
-| `fokus-platform` | Shared `ActivityDetector` trait, `WindowInfo`, app-name normalization helpers. |
-| `fokus-platform-windows` | Win32 API calls for active window + idle detection. |
-| `fokus-platform-linux` | X11/XCB (via `x11rb`) for active window + idle detection. |
-| `fokus-platform-macos` | CoreGraphics (`CGWindowList`, `CGEventSource`) for active window + idle detection. |
-| `fokus-collector` | Background loop: poll → classify → manage sessions → persist. |
-| `fokus-classifier` | Rule-based engine: pattern + priority → category. |
-| `fokus-storage` | SQLite schema, queries, and migrations. |
-| `fokus-sync-contracts` | (Future) Shared types for cloud sync. |
-| `fokus-desktop` | Tauri app: wires everything together, exposes IPC commands, system tray, autostart. |
+| `odacla-domain` | Core data models (Activity, Session, Rule, Category, Settings). Zero external deps. |
+| `odacla-platform` | Shared `ActivityDetector` trait, `WindowInfo`, app-name normalization helpers. |
+| `odacla-platform-windows` | Win32 API calls for active window + idle detection. |
+| `odacla-platform-linux` | X11/XCB (via `x11rb`) for active window + idle detection. |
+| `odacla-platform-macos` | CoreGraphics (`CGWindowList`, `CGEventSource`) for active window + idle detection. |
+| `odacla-collector` | Background loop: poll → classify → manage sessions → persist. |
+| `odacla-classifier` | Rule-based engine: pattern + priority → category. |
+| `odacla-storage` | SQLite schema, queries, and migrations. |
+| `odacla-sync-contracts` | (Future) Shared types for cloud sync. |
+| `odacla-desktop` | Tauri app: wires everything together, exposes IPC commands, system tray, autostart. |
 
 ## Data Flow
 
@@ -76,7 +76,7 @@ Odacla is a lightweight, privacy-first desktop time tracker built with Rust + Ta
 
 ## Cross-Platform Strategy
 
-The `fokus-platform` crate defines the platform-neutral `ActivityDetector` trait. Each OS gets its own implementation crate (`platform-windows`, `platform-linux`, `platform-macos`); the collector and the Tauri app select one at compile time via `cfg(target_os)`. Each platform crate also ships a mock stub so the workspace compiles on every host OS.
+The `odacla-platform` crate defines the platform-neutral `ActivityDetector` trait. Each OS gets its own implementation crate (`platform-windows`, `platform-linux`, `platform-macos`); the collector and the Tauri app select one at compile time via `cfg(target_os)`. Each platform crate also ships a mock stub so the workspace compiles on every host OS.
 
 To add a new platform, create `crates/platform-<os>/` implementing the trait, add `cfg(target_os)` entries in `collector/src/lib.rs` and `src-tauri/src/commands.rs`, and register the crate in the workspace `Cargo.toml`.
 

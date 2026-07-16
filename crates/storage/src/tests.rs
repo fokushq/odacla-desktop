@@ -3,7 +3,7 @@
 use chrono::{Duration, Utc};
 use uuid::Uuid;
 
-use fokus_domain::{rule::MatchTarget, Category, CustomCategory, Rule, Session, Settings};
+use odacla_domain::{rule::MatchTarget, Category, CustomCategory, Rule, Session, Settings};
 
 use crate::Database;
 
@@ -332,7 +332,7 @@ fn settings_roundtrip_preserves_custom_values() {
     let mut settings = Settings::default();
     settings.polling_interval_secs = 9;
     settings.excluded_apps.push("SecretApp".to_string());
-    settings.daily_goals.push(fokus_domain::DailyGoal {
+    settings.daily_goals.push(odacla_domain::DailyGoal {
         category: Category::Coding,
         target_minutes: 240,
     });

@@ -1,5 +1,5 @@
 [package]
-name = "fokus-sync-contracts"
+name = "odacla-sync-contracts"
 version.workspace = true
 edition.workspace = true
 

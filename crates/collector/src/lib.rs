@@ -7,19 +7,19 @@ use chrono::Utc;
 use tokio::sync::watch;
 use tracing::{debug, error, info, trace, warn};
 
-use fokus_classifier::Classifier;
-use fokus_domain::{Activity, ActivityKind, Category, Session, Settings, TrackingMode};
-use fokus_platform::ActivityDetector;
-use fokus_storage::Database;
+use odacla_classifier::Classifier;
+use odacla_domain::{Activity, ActivityKind, Category, Session, Settings, TrackingMode};
+use odacla_platform::ActivityDetector;
+use odacla_storage::Database;
 
 #[cfg(target_os = "windows")]
-use fokus_platform_windows::WindowsActivityDetector as PlatformDetector;
+use odacla_platform_windows::WindowsActivityDetector as PlatformDetector;
 
 #[cfg(target_os = "linux")]
-use fokus_platform_linux::LinuxActivityDetector as PlatformDetector;
+use odacla_platform_linux::LinuxActivityDetector as PlatformDetector;
 
 #[cfg(target_os = "macos")]
-use fokus_platform_macos::MacosActivityDetector as PlatformDetector;
+use odacla_platform_macos::MacosActivityDetector as PlatformDetector;
 
 /// A just-finalized session kept around briefly so a quick return to the
 /// same app can resume it instead of fragmenting history.

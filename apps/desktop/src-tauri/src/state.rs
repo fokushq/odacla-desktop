@@ -3,9 +3,9 @@
 use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
 
-use fokus_classifier::Classifier;
-use fokus_domain::Settings;
-use fokus_storage::Database;
+use odacla_classifier::Classifier;
+use odacla_domain::Settings;
+use odacla_storage::Database;
 
 /// The shared application state for Tauri commands.
 pub struct AppState {

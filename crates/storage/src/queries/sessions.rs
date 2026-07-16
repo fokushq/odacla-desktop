@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use fokus_domain::{Category, Session};
+use odacla_domain::{Category, Session};
 
 use crate::database::Database;
 use crate::error::StorageError;

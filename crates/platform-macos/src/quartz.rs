@@ -9,7 +9,7 @@
 //! Without it we gracefully fall back to the owner application's name, so
 //! app-level tracking keeps working out of the box.
 
-use fokus_platform::{
+use odacla_platform::{
     extract_app_name, normalize_app_name, ActivityDetector, PlatformError, WindowInfo,
 };
 

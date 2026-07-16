@@ -4,7 +4,7 @@
 //! process IDs, and idle time. Falls back gracefully when properties
 //! are missing (e.g. some tiling WMs omit _NET_WM_PID).
 
-use fokus_platform::{
+use odacla_platform::{
     extract_app_name, normalize_app_name, ActivityDetector, PlatformError, WindowInfo,
 };
 

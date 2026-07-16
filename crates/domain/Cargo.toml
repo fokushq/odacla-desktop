@@ -1,5 +1,5 @@
 [package]
-name = "fokus-domain"
+name = "odacla-domain"
 version.workspace = true
 edition.workspace = true
 

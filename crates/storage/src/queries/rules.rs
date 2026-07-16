@@ -1,6 +1,6 @@
 //! Rule queries.
 
-use fokus_domain::{Category, Rule, rule::MatchTarget};
+use odacla_domain::{Category, Rule, rule::MatchTarget};
 
 use crate::database::Database;
 use crate::error::StorageError;

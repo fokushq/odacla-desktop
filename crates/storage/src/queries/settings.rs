@@ -1,6 +1,6 @@
 //! Settings queries.
 
-use fokus_domain::Settings;
+use odacla_domain::Settings;
 
 use crate::database::Database;
 use crate::error::StorageError;

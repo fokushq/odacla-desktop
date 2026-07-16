@@ -9,9 +9,9 @@
 
 use tracing::warn;
 
-use fokus_classifier::Classifier;
-use fokus_domain::{Activity, ActivityKind};
-use fokus_storage::Database;
+use odacla_classifier::Classifier;
+use odacla_domain::{Activity, ActivityKind};
+use odacla_storage::Database;
 
 /// Re-run the classifier over all closed sessions; returns how many changed.
 /// Rollups are only adjusted for sessions long enough to have been rolled

@@ -1,7 +1,7 @@
 //! Daily rollup queries — Pre-aggregated summaries.
 
 use chrono::NaiveDate;
-use fokus_domain::Category;
+use odacla_domain::Category;
 
 use crate::database::Database;
 use crate::error::StorageError;

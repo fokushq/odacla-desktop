@@ -4,26 +4,26 @@ use chrono::{DateTime, NaiveDate, Utc};
 use tauri::State;
 use uuid::Uuid;
 
-use fokus_domain::{Category, CustomCategory, Rule, Session, Settings, TrackingMode, rule::MatchTarget};
-use fokus_platform::ActivityDetector;
-use fokus_storage::queries::rollups::DailyRollup;
+use odacla_domain::{Category, CustomCategory, Rule, Session, Settings, TrackingMode, rule::MatchTarget};
+use odacla_platform::ActivityDetector;
+use odacla_storage::queries::rollups::DailyRollup;
 
 #[cfg(target_os = "windows")]
-use fokus_platform_windows::WindowsActivityDetector as PlatformDetector;
+use odacla_platform_windows::WindowsActivityDetector as PlatformDetector;
 
 #[cfg(target_os = "linux")]
-use fokus_platform_linux::LinuxActivityDetector as PlatformDetector;
+use odacla_platform_linux::LinuxActivityDetector as PlatformDetector;
 
 #[cfg(target_os = "macos")]
-use fokus_platform_macos::MacosActivityDetector as PlatformDetector;
+use odacla_platform_macos::MacosActivityDetector as PlatformDetector;
 
 use crate::state::AppState;
 
 /// After any rule/category mutation: re-run history through the current
 /// rules so sessions, charts and rollups immediately reflect the change.
 fn resync_history(
-    db: &fokus_storage::Database,
-    classifier: &fokus_classifier::Classifier,
+    db: &odacla_storage::Database,
+    classifier: &odacla_classifier::Classifier,
     state: &State<AppState>,
 ) {
     let min_secs = state

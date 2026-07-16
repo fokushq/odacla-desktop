@@ -135,7 +135,7 @@ impl Database {
             |row| row.get(0),
         );
         if let Ok(json) = stored {
-            if let Ok(mut s) = serde_json::from_str::<fokus_domain::Settings>(&json) {
+            if let Ok(mut s) = serde_json::from_str::<odacla_domain::Settings>(&json) {
                 let before = s.excluded_apps.len() + s.included_apps.len();
                 s.excluded_apps
                     .retain(|a| !legacy_self.contains(&a.to_lowercase().as_str()));
@@ -161,7 +161,7 @@ impl Database {
         )?;
 
         if settings_count == 0 {
-            let default_settings = fokus_domain::Settings::default();
+            let default_settings = odacla_domain::Settings::default();
             let json = serde_json::to_string(&default_settings)
                 .map_err(StorageError::Serialization)?;
             self.conn.execute(

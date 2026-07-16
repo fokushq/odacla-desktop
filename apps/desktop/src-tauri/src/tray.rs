@@ -3,7 +3,7 @@
 //! definition of the menu.
 
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
-use tauri::{AppHandle, Manager, Wry};
+use tauri::{AppHandle, Wry};
 
 /// Build the tray menu. `focus_active` drives the checkmark on the
 /// Focus Mode item (focus mode == whitelist/IncludeList tracking).

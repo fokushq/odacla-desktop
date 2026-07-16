@@ -1,10 +1,10 @@
 [package]
-name = "fokus-platform-linux"
+name = "odacla-platform-linux"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-fokus-platform = { path = "../platform" }
+odacla-platform = { path = "../platform" }
 tracing = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
