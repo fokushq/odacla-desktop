@@ -1,0 +1,54 @@
+name: CI
+
+# Every push to main (and every PR) compiles the FULL app natively on
+# Windows and Linux and runs the whole test suite. Development happens
+# on macOS, so this is what actually guarantees the other two platforms
+# keep working.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: Build workspace (native, includes the Tauri app)
+        run: cargo build --workspace
+
+      - name: Run tests
+        run: cargo test --workspace
+
+      - name: Setup Node.js
+        if: matrix.platform == 'ubuntu-latest'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Frontend type-check (svelte-check)
+        if: matrix.platform == 'ubuntu-latest'
+        working-directory: ./apps/desktop
+        run: |
+          npm install
+          npm run check

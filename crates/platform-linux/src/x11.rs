@@ -3,10 +3,15 @@
 //! Uses xcb (via x11rb) to query the active window, window titles,
 //! process IDs, and idle time. Falls back gracefully when properties
 //! are missing (e.g. some tiling WMs omit _NET_WM_PID).
+//!
+//! If no X11 display is reachable (pure Wayland without XWayland, or a
+//! headless session), the detector degrades to a no-op instead of
+//! panicking: the app stays alive, tracking simply reports nothing.
 
 use odacla_platform::{
     extract_app_name, normalize_app_name, ActivityDetector, PlatformError, WindowInfo,
 };
+use tracing::warn;
 
 use x11rb::connection::Connection;
 use x11rb::protocol::screensaver;
@@ -14,7 +19,12 @@ use x11rb::protocol::xproto::{Atom, AtomEnum, ConnectionExt, Window};
 use x11rb::rust_connection::RustConnection;
 
 /// The Linux implementation of ActivityDetector, backed by X11/XCB.
+/// `inner` is None when no X server is reachable.
 pub struct LinuxActivityDetector {
+    inner: Option<X11Connection>,
+}
+
+struct X11Connection {
     conn: RustConnection,
     root: Window,
     // Cached atoms — these never change for a given X server.
@@ -28,26 +38,46 @@ pub struct LinuxActivityDetector {
 
 impl LinuxActivityDetector {
     pub fn new() -> Self {
-        let (conn, screen_num) =
-            RustConnection::connect(None).expect("Failed to connect to X11 display");
+        match X11Connection::connect() {
+            Some(inner) => Self { inner: Some(inner) },
+            None => {
+                warn!(
+                    "No X11 display available (Wayland without XWayland?) — \
+                     activity detection is disabled for this session"
+                );
+                Self { inner: None }
+            }
+        }
+    }
+}
 
-        let root = conn.setup().roots[screen_num].root;
+impl Default for LinuxActivityDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-        // Intern all the atoms we need up-front.
+impl X11Connection {
+    /// Connect and intern the atoms we need. Any failure yields None —
+    /// callers treat that as "no detection available".
+    fn connect() -> Option<Self> {
+        let (conn, screen_num) = RustConnection::connect(None).ok()?;
+        let root = conn.setup().roots.get(screen_num)?.root;
+
         // Must resolve all cookies before moving conn into Self.
-        let c1 = conn.intern_atom(false, b"_NET_ACTIVE_WINDOW").unwrap();
-        let c2 = conn.intern_atom(false, b"_NET_WM_NAME").unwrap();
-        let c3 = conn.intern_atom(false, b"_NET_WM_PID").unwrap();
-        let c4 = conn.intern_atom(false, b"_NET_CLIENT_LIST").unwrap();
-        let c5 = conn.intern_atom(false, b"UTF8_STRING").unwrap();
+        let c1 = conn.intern_atom(false, b"_NET_ACTIVE_WINDOW").ok()?;
+        let c2 = conn.intern_atom(false, b"_NET_WM_NAME").ok()?;
+        let c3 = conn.intern_atom(false, b"_NET_WM_PID").ok()?;
+        let c4 = conn.intern_atom(false, b"_NET_CLIENT_LIST").ok()?;
+        let c5 = conn.intern_atom(false, b"UTF8_STRING").ok()?;
 
-        let atom_net_active_window = c1.reply().unwrap().atom;
-        let atom_net_wm_name = c2.reply().unwrap().atom;
-        let atom_net_wm_pid = c3.reply().unwrap().atom;
-        let atom_net_client_list = c4.reply().unwrap().atom;
-        let atom_utf8_string = c5.reply().unwrap().atom;
+        let atom_net_active_window = c1.reply().ok()?.atom;
+        let atom_net_wm_name = c2.reply().ok()?.atom;
+        let atom_net_wm_pid = c3.reply().ok()?.atom;
+        let atom_net_client_list = c4.reply().ok()?.atom;
+        let atom_utf8_string = c5.reply().ok()?.atom;
 
-        Self {
+        Some(Self {
             atom_net_active_window,
             atom_net_wm_name,
             atom_net_wm_pid,
@@ -56,7 +86,7 @@ impl LinuxActivityDetector {
             atom_wm_name: AtomEnum::WM_NAME.into(),
             conn,
             root,
-        }
+        })
     }
 
     /// Get the _NET_ACTIVE_WINDOW from the root.
@@ -200,18 +230,8 @@ impl LinuxActivityDetector {
             .filter_map(|chunk| chunk.try_into().ok().map(u32::from_ne_bytes))
             .collect()
     }
-}
 
-impl ActivityDetector for LinuxActivityDetector {
-    fn get_active_window(&self) -> Result<Option<WindowInfo>, PlatformError> {
-        let win = match self.active_window_id()? {
-            Some(w) => w,
-            None => return Ok(None),
-        };
-        Ok(self.window_info(win))
-    }
-
-    fn get_idle_seconds(&self) -> Result<u32, PlatformError> {
+    fn idle_seconds(&self) -> Result<u32, PlatformError> {
         let reply = screensaver::query_info(&self.conn, self.root)
             .map_err(|e| PlatformError::IdleTime(e.to_string()))?
             .reply()
@@ -219,11 +239,34 @@ impl ActivityDetector for LinuxActivityDetector {
 
         Ok((reply.ms_since_user_input / 1000) as u32)
     }
+}
+
+impl ActivityDetector for LinuxActivityDetector {
+    fn get_active_window(&self) -> Result<Option<WindowInfo>, PlatformError> {
+        let Some(x11) = &self.inner else {
+            return Ok(None);
+        };
+        let win = match x11.active_window_id()? {
+            Some(w) => w,
+            None => return Ok(None),
+        };
+        Ok(x11.window_info(win))
+    }
+
+    fn get_idle_seconds(&self) -> Result<u32, PlatformError> {
+        match &self.inner {
+            Some(x11) => x11.idle_seconds(),
+            None => Ok(0),
+        }
+    }
 
     fn get_visible_windows(&self) -> Vec<WindowInfo> {
-        self.client_list()
+        let Some(x11) = &self.inner else {
+            return Vec::new();
+        };
+        x11.client_list()
             .into_iter()
-            .filter_map(|win| self.window_info(win))
+            .filter_map(|win| x11.window_info(win))
             .collect()
     }
 }
