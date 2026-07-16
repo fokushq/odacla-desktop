@@ -9,7 +9,8 @@
 -->
 
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { getSettings, saveSettings, getDetectedApps, getRunningApps, exportData } from "$lib/api";
   import type { Settings, TrackingMode, Appearance } from "$lib/types";
   import { applyAppearance } from "$lib/types";
@@ -155,7 +156,15 @@
       )
     : [];
 
-  onMount(fetchSettings);
+  // Tray focus-mode toggles should update the radios if this page is open
+  let unlistenMode: UnlistenFn | undefined;
+  onMount(async () => {
+    fetchSettings();
+    unlistenMode = await listen<string>("tracking-mode-changed", (event) => {
+      if (settings) settings.tracking_mode = event.payload as TrackingMode;
+    });
+  });
+  onDestroy(() => unlistenMode?.());
 
   // ─── Data export ─────────────────────────────────────────────────
   function localDateStr(d: Date): string {

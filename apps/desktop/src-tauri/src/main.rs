@@ -9,12 +9,12 @@
 mod commands;
 mod reclassify;
 mod state;
+mod tray;
 
 use std::sync::{Arc, Mutex};
 
-use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tokio::sync::watch;
 use tracing::{info, warn};
@@ -22,6 +22,7 @@ use tracing_subscriber::EnvFilter;
 
 use fokus_classifier::Classifier;
 use fokus_collector::Collector;
+use fokus_domain::TrackingMode;
 use fokus_storage::Database;
 
 fn main() {
@@ -142,11 +143,12 @@ fn main() {
             app.manage(state::ShutdownHandle(shutdown_tx));
 
             // ─── System tray ────────────────────────────────────────
-            let show_tray = settings.lock().map(|s| s.show_tray_icon).unwrap_or(true);
+            let (show_tray, focus_active) = settings
+                .lock()
+                .map(|s| (s.show_tray_icon, s.tracking_mode == TrackingMode::IncludeList))
+                .unwrap_or((true, false));
 
-            let show_item = MenuItem::with_id(app, "show", "Show Odacla", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit Odacla", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let tray_menu = tray::build_menu(&app.handle(), focus_active)?;
 
             // Dedicated monochrome glyph (ring + dot) — macOS renders
             // template icons from the alpha channel, so the colored app
@@ -161,6 +163,33 @@ fn main() {
                 .menu(&tray_menu)
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id.as_ref() {
+                    "focus" => {
+                        // One-click focus mode: flip between whitelist
+                        // (IncludeList) and normal (ExcludeList) tracking.
+                        let state = app.state::<state::AppState>();
+                        let mut focus_active = false;
+                        if let Ok(mut settings) = state.settings.lock() {
+                            settings.tracking_mode =
+                                if settings.tracking_mode == TrackingMode::IncludeList {
+                                    TrackingMode::ExcludeList
+                                } else {
+                                    TrackingMode::IncludeList
+                                };
+                            focus_active =
+                                settings.tracking_mode == TrackingMode::IncludeList;
+                            if let Ok(db) = state.db.lock() {
+                                if let Err(e) = db.save_settings(&settings) {
+                                    warn!("Failed to persist focus mode: {}", e);
+                                }
+                            }
+                        }
+                        tray::refresh(app, focus_active);
+                        let _ = app.emit(
+                            "tracking-mode-changed",
+                            if focus_active { "include_list" } else { "exclude_list" },
+                        );
+                        info!(focus = focus_active, "Focus mode toggled from tray");
+                    }
                     "show" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();

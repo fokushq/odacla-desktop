@@ -4,7 +4,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use tauri::State;
 use uuid::Uuid;
 
-use fokus_domain::{Category, CustomCategory, Rule, Session, Settings, rule::MatchTarget};
+use fokus_domain::{Category, CustomCategory, Rule, Session, Settings, TrackingMode, rule::MatchTarget};
 use fokus_platform::ActivityDetector;
 use fokus_storage::queries::rollups::DailyRollup;
 
@@ -366,6 +366,17 @@ pub fn save_settings(
         if let Err(e) = result {
             tracing::warn!("Failed to update autostart: {}", e);
         }
+    }
+
+    // Keep the tray's Focus Mode checkmark in sync and tell the UI
+    let focus_active = settings.tracking_mode == TrackingMode::IncludeList;
+    crate::tray::refresh(&app, focus_active);
+    {
+        use tauri::Emitter;
+        let _ = app.emit(
+            "tracking-mode-changed",
+            if focus_active { "include_list" } else { "exclude_list" },
+        );
     }
 
     // Hot-reload: update the shared settings so the collector sees the change

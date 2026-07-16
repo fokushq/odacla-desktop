@@ -14,8 +14,9 @@
 -->
 
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { fade } from "svelte/transition";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import Dashboard from "./pages/Dashboard.svelte";
   import Timeline from "./pages/Timeline.svelte";
   import Reports from "./pages/Reports.svelte";
@@ -25,18 +26,28 @@
   import { getCustomCategories, getSettings } from "$lib/api";
   import { setCustomCategoryColors, applyAppearance } from "$lib/types";
 
-  // Startup: load custom category colors (used by charts everywhere)
-  // and apply the saved theme preference. The Rules/Settings pages
-  // refresh these after edits.
+  // Focus mode indicator — mirrors the tracking mode, updated live
+  // whenever it changes (tray toggle or Settings save).
+  let focusActive = false;
+  let unlistenMode: UnlistenFn | undefined;
+
+  // Startup: load custom category colors (used by charts everywhere),
+  // apply the saved theme preference, and subscribe to mode changes.
   onMount(async () => {
     try {
       const [cats, settings] = await Promise.all([getCustomCategories(), getSettings()]);
       setCustomCategoryColors(cats);
       applyAppearance(settings.appearance ?? "system");
+      focusActive = settings.tracking_mode === "include_list";
+      unlistenMode = await listen<string>("tracking-mode-changed", (event) => {
+        focusActive = event.payload === "include_list";
+      });
     } catch (e) {
       console.error("Failed to load startup data:", e);
     }
   });
+
+  onDestroy(() => unlistenMode?.());
 
   // macOS uses an overlay title bar (traffic lights float over our UI),
   // so the sidebar needs top clearance and a drag strip. Other platforms
@@ -129,6 +140,12 @@
     </ul>
 
     <div class="sidebar-footer">
+      {#if focusActive}
+        <div class="focus-pill" title="Whitelist tracking is active">
+          <span class="focus-dot"></span>
+          Focus Mode
+        </div>
+      {/if}
       <p class="version">v0.1.0</p>
     </div>
   </nav>
@@ -474,6 +491,32 @@
   .version {
     font-size: 11px;
     color: var(--text-3);
+  }
+
+  .focus-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 11px;
+    margin-bottom: 8px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+
+  .focus-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: focus-pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes -global-focus-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
   }
 
   /* ═══ Main Content ══════════════════════════════════════════════ */
