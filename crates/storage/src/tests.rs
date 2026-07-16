@@ -135,6 +135,74 @@ fn detected_apps_are_ordered_by_usage() {
     assert_eq!(apps, vec!["Code".to_string(), "Firefox".to_string()]);
 }
 
+// ─── Manual sessions ────────────────────────────────────────────────────────
+
+#[test]
+fn manual_session_source_roundtrips() {
+    let db = db();
+    let start = Utc::now() - Duration::hours(2);
+    let manual = Session::manual(
+        "Sprint planning".to_string(),
+        Category::Productive,
+        start,
+        Some(start + Duration::hours(1)),
+    );
+    db.insert_session(&manual).unwrap();
+
+    let found = db
+        .get_sessions_in_range(Utc::now() - Duration::hours(3), Utc::now())
+        .unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].source, odacla_domain::SessionSource::Manual);
+    assert_eq!(found[0].app_name, "Sprint planning");
+}
+
+#[test]
+fn manual_sessions_are_invisible_to_auto_queries() {
+    let db = db();
+    let start = Utc::now() - Duration::hours(1);
+    // Closed manual entry + running manual timer
+    let entry = Session::manual(
+        "Meeting".to_string(),
+        Category::Productive,
+        start,
+        Some(start + Duration::minutes(30)),
+    );
+    let timer = Session::manual("Reading".to_string(), Category::Study, Utc::now(), None);
+    db.insert_session(&entry).unwrap();
+    db.insert_session(&timer).unwrap();
+
+    // Resync input must skip manual history — rules never touch it
+    assert!(db.get_closed_sessions().unwrap().is_empty());
+    // The collector's active-session view must not see the timer
+    assert!(db.get_active_session().unwrap().is_none());
+    // Manual labels are not applications
+    assert!(db.get_detected_apps().unwrap().is_empty());
+    // ...but the timer query finds it
+    let active = db.get_active_manual_session().unwrap().unwrap();
+    assert_eq!(active.id, timer.id);
+}
+
+#[test]
+fn stale_cleanup_discards_orphaned_manual_timer_but_closes_auto() {
+    let db = db();
+    db.insert_session(&make_session("Code")).unwrap(); // open auto
+    let timer = Session::manual("Reading".to_string(), Category::Study, Utc::now(), None);
+    db.insert_session(&timer).unwrap(); // open manual (crash leftover)
+
+    let closed = db.close_stale_sessions(5).unwrap();
+    assert_eq!(closed, 1, "only the auto session gets an estimated end");
+
+    assert!(db.get_active_manual_session().unwrap().is_none());
+    assert!(db.get_session_by_id(&timer.id).unwrap().is_none(), "orphaned timer is deleted");
+
+    let all = db
+        .get_sessions_in_range(Utc::now() - Duration::hours(1), Utc::now() + Duration::hours(1))
+        .unwrap();
+    assert_eq!(all.len(), 1);
+    assert!(all[0].end_time.is_some());
+}
+
 // ─── Rollups ────────────────────────────────────────────────────────────────
 
 #[test]

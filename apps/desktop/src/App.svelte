@@ -23,13 +23,16 @@
   import Rules from "./pages/Rules.svelte";
   import SettingsPage from "./pages/Settings.svelte";
   import { currentPage } from "./stores/navigation";
-  import { getCustomCategories, getSettings } from "$lib/api";
-  import { setCustomCategoryColors, applyAppearance } from "$lib/types";
+  import { manualTimer } from "./stores/timer";
+  import { getCustomCategories, getSettings, getActiveManualTimer } from "$lib/api";
+  import { setCustomCategoryColors, applyAppearance, categoryColor } from "$lib/types";
+  import type { Session } from "$lib/types";
 
   // Focus mode indicator — mirrors the tracking mode, updated live
   // whenever it changes (tray toggle or Settings save).
   let focusActive = false;
   let unlistenMode: UnlistenFn | undefined;
+  let unlistenTimer: UnlistenFn | undefined;
 
   // Pages render only after the startup data (custom category colors,
   // theme) is in — otherwise the first paint races the async load and
@@ -40,12 +43,22 @@
   // apply the saved theme preference, and subscribe to mode changes.
   onMount(async () => {
     try {
-      const [cats, settings] = await Promise.all([getCustomCategories(), getSettings()]);
+      const [cats, settings, timer] = await Promise.all([
+        getCustomCategories(),
+        getSettings(),
+        getActiveManualTimer().catch(() => null),
+      ]);
       setCustomCategoryColors(cats);
       applyAppearance(settings.appearance ?? "system");
       focusActive = settings.tracking_mode === "include_list";
+      manualTimer.set(timer);
       unlistenMode = await listen<string>("tracking-mode-changed", (event) => {
         focusActive = event.payload === "include_list";
+      });
+      // Timer started/stopped anywhere (Timeline or the tray menu) —
+      // keep the sidebar pill and Timeline controls in sync.
+      unlistenTimer = await listen<Session | null>("manual-timer-changed", (event) => {
+        manualTimer.set(event.payload);
       });
     } catch (e) {
       console.error("Failed to load startup data:", e);
@@ -54,7 +67,37 @@
     }
   });
 
-  onDestroy(() => unlistenMode?.());
+  onDestroy(() => {
+    unlistenMode?.();
+    unlistenTimer?.();
+    if (timerTick) clearInterval(timerTick);
+  });
+
+  // ─── Sidebar timer pill — live elapsed time while a manual timer runs.
+  // Ticks only while a timer is active; the interval dies with the window
+  // (closing the window destroys the webview), so no background cost.
+  let timerNow = Date.now();
+  let timerTick: ReturnType<typeof setInterval> | undefined;
+  $: {
+    if ($manualTimer && !timerTick) {
+      timerNow = Date.now();
+      timerTick = setInterval(() => (timerNow = Date.now()), 1000);
+    } else if (!$manualTimer && timerTick) {
+      clearInterval(timerTick);
+      timerTick = undefined;
+    }
+  }
+  $: timerElapsed = $manualTimer ? fmtElapsed($manualTimer.start_time, timerNow) : "";
+
+  function fmtElapsed(startIso: string, nowMs: number): string {
+    const secs = Math.max(0, Math.floor((nowMs - new Date(startIso).getTime()) / 1000));
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    const mm = String(m).padStart(2, "0");
+    const ss = String(s).padStart(2, "0");
+    return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+  }
 
   // macOS uses an overlay title bar (traffic lights float over our UI),
   // so the sidebar needs top clearance and a drag strip. Other platforms
@@ -147,6 +190,20 @@
     </ul>
 
     <div class="sidebar-footer">
+      {#if $manualTimer}
+        <button
+          class="timer-pill"
+          title="Manual timer running — open Timeline"
+          on:click={() => currentPage.set("timeline")}
+        >
+          <span
+            class="timer-dot"
+            style="background-color: {categoryColor($manualTimer.category)}"
+          ></span>
+          <span class="timer-label">{$manualTimer.app_name}</span>
+          <span class="timer-elapsed">{timerElapsed}</span>
+        </button>
+      {/if}
       {#if focusActive}
         <div class="focus-pill" title="Whitelist tracking is active">
           <span class="focus-dot"></span>
@@ -513,6 +570,51 @@
     border-radius: 999px;
     font-size: 11.5px;
     font-weight: 600;
+  }
+
+  /* Sidebar timer pill — same visual family as the focus pill, but
+     clickable (jumps to Timeline) and tinted by the timer's category. */
+  .timer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 100%;
+    padding: 5px 11px;
+    margin-bottom: 8px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    border: none;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+
+  .timer-pill:hover {
+    background: var(--accent-soft);
+  }
+
+  .timer-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: focus-pulse 2.4s ease-in-out infinite;
+  }
+
+  .timer-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .timer-elapsed {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-1);
+    flex-shrink: 0;
   }
 
   .focus-dot {

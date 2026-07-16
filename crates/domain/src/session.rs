@@ -6,6 +6,27 @@ use uuid::Uuid;
 
 use crate::category::Category;
 
+/// Where a session came from: recorded automatically by the collector,
+/// or entered by hand (manual entry / manual timer). Manual sessions are
+/// the user's word — they are never reclassified by rules, never merged,
+/// and never discarded for being short.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionSource {
+    #[default]
+    Auto,
+    Manual,
+}
+
+impl SessionSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SessionSource::Auto => "auto",
+            SessionSource::Manual => "manual",
+        }
+    }
+}
+
 /// A continuous block of activity in a single application/category.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
@@ -39,6 +60,11 @@ pub struct Session {
     /// A session might be 60 minutes long but include 5 minutes of
     /// brief idle periods. This helps calculate "active time" accurately.
     pub idle_seconds_total: u32,
+
+    /// Whether the collector recorded this session or the user entered it.
+    /// Defaults to Auto so JSON from older exports still deserializes.
+    #[serde(default)]
+    pub source: SessionSource,
 }
 
 impl Session {
@@ -54,6 +80,30 @@ impl Session {
             url,
             activity_count: 1,
             idle_seconds_total: 0,
+            source: SessionSource::Auto,
+        }
+    }
+
+    /// Create a manual session — a block of time the user entered by hand
+    /// (offline work the computer can't see: meetings, reading, calls).
+    /// `end_time` is None for a running manual timer.
+    pub fn manual(
+        label: String,
+        category: Category,
+        start_time: DateTime<Utc>,
+        end_time: Option<DateTime<Utc>>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            start_time,
+            end_time,
+            app_name: label,
+            window_title: String::new(),
+            category,
+            url: None,
+            activity_count: 1,
+            idle_seconds_total: 0,
+            source: SessionSource::Manual,
         }
     }
 

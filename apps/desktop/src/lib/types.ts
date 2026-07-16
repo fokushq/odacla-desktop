@@ -28,6 +28,9 @@ export type Category =
   | "uncategorized"
   | { custom: string };
 
+/** Mirrors fokus_domain::SessionSource (serde rename_all = "snake_case") */
+export type SessionSource = "auto" | "manual";
+
 /** Mirrors fokus_domain::Session */
 export interface Session {
   id: string;
@@ -39,6 +42,7 @@ export interface Session {
   url: string | null;
   activity_count: number;
   idle_seconds_total: number;
+  source: SessionSource;
 }
 
 /** Mirrors fokus_domain::Rule */

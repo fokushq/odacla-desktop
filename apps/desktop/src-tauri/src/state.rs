@@ -16,3 +16,8 @@ pub struct AppState {
 
 /// Handle to send the shutdown signal to the collector.
 pub struct ShutdownHandle(pub watch::Sender<bool>);
+
+/// Start instant of the running manual timer, if any. Mirrors the open
+/// manual session in the database; kept in memory so the tray ticker can
+/// update the menu-bar clock every second without hitting SQLite.
+pub struct TimerState(pub Mutex<Option<chrono::DateTime<chrono::Utc>>>);

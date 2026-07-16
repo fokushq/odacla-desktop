@@ -10,5 +10,5 @@ pub mod settings;
 pub use activity::{Activity, ActivityKind};
 pub use category::{Category, CustomCategory};
 pub use rule::Rule;
-pub use session::Session;
+pub use session::{Session, SessionSource};
 pub use settings::{DailyGoal, Settings, TrackingMode};

@@ -13,8 +13,17 @@
 
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { getSessionsForDate, getTodaySessions } from "$lib/api";
-  import type { Session, Category } from "$lib/types";
+  import { slide } from "svelte/transition";
+  import {
+    getSessionsForDate,
+    getTodaySessions,
+    getCustomCategories,
+    createManualEntry,
+    startManualTimer,
+    stopManualTimer,
+    deleteManualSession,
+  } from "$lib/api";
+  import type { Session, Category, CustomCategory } from "$lib/types";
   import {
     categoryColor,
     categoryName,
@@ -22,6 +31,7 @@
     formatTime,
   } from "$lib/types";
   import { consumeTimelineDate } from "../stores/navigation";
+  import { manualTimer } from "../stores/timer";
   import EmptyState from "../components/EmptyState.svelte";
 
   let sessions: Session[] = [];
@@ -244,6 +254,10 @@
   // init, so this covers the initial load.
   $: selectedDate, fetchSessions();
 
+  // The timer can also be stopped from the tray menu — refresh the list
+  // whenever the shared timer state flips.
+  $: $manualTimer, fetchSessions(true);
+
   // Keep today's view live — new sessions and the "now" marker refresh
   // every 30s, like the Dashboard.
   let pollInterval: ReturnType<typeof setInterval>;
@@ -251,8 +265,163 @@
     pollInterval = setInterval(() => {
       if (selectedDate === localToday()) fetchSessions(true);
     }, 30_000);
+    getCustomCategories()
+      .then((cats) => (customCats = cats))
+      .catch(() => {});
   });
   onDestroy(() => { if (pollInterval) clearInterval(pollInterval); });
+
+  // ─── Manual entries & timer ─────────────────────────────────────
+  // Time the computer can't see (meetings, reading, calls) can be added
+  // by hand or tracked live with a timer. Categories are passed to the
+  // backend JSON-encoded, same as rules and goals.
+  let customCats: CustomCategory[] = [];
+
+  const builtinEntryCats: { value: string; label: string }[] = [
+    { value: '"study"', label: "Study" },
+    { value: '"coding"', label: "Coding" },
+    { value: '"note_taking"', label: "Note-taking" },
+    { value: '"productive"', label: "Productive" },
+    { value: '"entertainment"', label: "Entertainment" },
+    { value: '"communication"', label: "Communication" },
+  ];
+
+  $: entryCategories = [
+    ...builtinEntryCats,
+    ...customCats.map((c) => ({ value: JSON.stringify({ custom: c.name }), label: c.name })),
+  ];
+
+  type FormKind = "entry" | "timer" | null;
+  let openForm: FormKind = null;
+  let formError = "";
+
+  let entryLabel = "";
+  let entryCat = '"productive"';
+  let entryStart = "09:00";
+  let entryEnd = "10:00";
+
+  let timerLabel = "";
+  let timerCat = '"productive"';
+
+  /** "HH:MM" rounded down to 5 minutes. */
+  function roundedTime(date: Date): string {
+    const h = String(date.getHours()).padStart(2, "0");
+    const m = String(Math.floor(date.getMinutes() / 5) * 5).padStart(2, "0");
+    return `${h}:${m}`;
+  }
+
+  function toggleForm(kind: FormKind) {
+    formError = "";
+    if (openForm === kind) {
+      openForm = null;
+      return;
+    }
+    if (kind === "entry") {
+      // Sensible defaults: the last hour (today) or a morning block.
+      if (selectedDate === localToday()) {
+        const now = new Date();
+        entryEnd = roundedTime(now);
+        entryStart = roundedTime(new Date(now.getTime() - HOUR_MS));
+      } else {
+        entryStart = "09:00";
+        entryEnd = "10:00";
+      }
+    }
+    openForm = kind;
+  }
+
+  /** Parse a 24-hour time string. Forgiving on input ("9", "9:5",
+   *  "0930" all work), strict on range. Returns minutes since midnight. */
+  function parseTime(value: string): number | null {
+    const v = value.trim();
+    let h: number, m: number;
+    let match = v.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+    if (match) {
+      h = Number(match[1]);
+      m = Number(match[2] ?? 0);
+    } else if ((match = v.match(/^(\d{2})(\d{2})$/))) {
+      h = Number(match[1]);
+      m = Number(match[2]);
+    } else {
+      return null;
+    }
+    if (h > 23 || m > 59) return null;
+    return h * 60 + m;
+  }
+
+  /** Normalize a time field to "HH:MM" on blur ("9:5" → "09:05"). */
+  function normalizeTime(value: string): string {
+    const mins = parseTime(value);
+    if (mins === null) return value;
+    const h = String(Math.floor(mins / 60)).padStart(2, "0");
+    const m = String(mins % 60).padStart(2, "0");
+    return `${h}:${m}`;
+  }
+
+  /** Combine the viewed date with minutes-since-midnight into an ISO instant. */
+  function dateTimeIso(minutes: number): string {
+    const [y, m, d] = selectedDate.split("-").map(Number);
+    return new Date(y, m - 1, d, Math.floor(minutes / 60), minutes % 60).toISOString();
+  }
+
+  async function addEntry() {
+    formError = "";
+    const startMins = parseTime(entryStart);
+    const endMins = parseTime(entryEnd);
+    if (startMins === null || endMins === null) {
+      formError = "Times must be 24-hour, like 09:00 or 17:30";
+      return;
+    }
+    if (endMins <= startMins) {
+      formError = "End time must be after start time";
+      return;
+    }
+    try {
+      await createManualEntry(
+        entryLabel.trim() || null,
+        entryCat,
+        dateTimeIso(startMins),
+        dateTimeIso(endMins)
+      );
+      openForm = null;
+      entryLabel = "";
+      await fetchSessions(true);
+    } catch (e) {
+      formError = String(e);
+    }
+  }
+
+  async function startTimer() {
+    formError = "";
+    try {
+      const session = await startManualTimer(timerLabel.trim() || null, timerCat);
+      manualTimer.set(session);
+      openForm = null;
+      timerLabel = "";
+      await fetchSessions(true);
+    } catch (e) {
+      formError = String(e);
+    }
+  }
+
+  async function stopTimer() {
+    try {
+      await stopManualTimer();
+      manualTimer.set(null);
+      await fetchSessions(true);
+    } catch (e) {
+      console.error("Failed to stop timer:", e);
+    }
+  }
+
+  async function deleteEntry(session: Session) {
+    try {
+      await deleteManualSession(session.id);
+      await fetchSessions(true);
+    } catch (e) {
+      console.error("Failed to delete entry:", e);
+    }
+  }
 </script>
 
 <div class="timeline-page">
@@ -261,12 +430,114 @@
       <h2 class="page-title">Timeline</h2>
       <p class="page-subtitle">Total: {formatDuration(Math.round(totalSeconds))}</p>
     </div>
-    <input
-      type="date"
-      class="date-picker"
-      bind:value={selectedDate}
-    />
+    <div class="header-actions">
+      {#if $manualTimer}
+        <button class="action-btn stop-btn" on:click={stopTimer}>
+          <span class="stop-square"></span>
+          Stop Timer
+        </button>
+      {:else}
+        <button
+          class="action-btn"
+          class:action-open={openForm === "timer"}
+          on:click={() => toggleForm("timer")}
+        >
+          <svg class="action-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M8 5.5v13l10.5-6.5L8 5.5z" />
+          </svg>
+          Timer
+        </button>
+      {/if}
+      <button
+        class="action-btn"
+        class:action-open={openForm === "entry"}
+        on:click={() => toggleForm("entry")}
+      >
+        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        Add Entry
+      </button>
+      <input
+        type="date"
+        class="date-picker"
+        bind:value={selectedDate}
+      />
+    </div>
   </header>
+
+  {#if openForm === "entry"}
+    <div class="manual-form" transition:slide={{ duration: 160 }}>
+      <div class="manual-form-row">
+        <!-- svelte-ignore a11y-autofocus — the user just clicked "Add Entry" -->
+        <input
+          class="manual-input manual-label-input"
+          type="text"
+          placeholder="What did you work on? (optional)"
+          bind:value={entryLabel}
+          maxlength="60"
+          autofocus
+          on:keydown={(e) => e.key === "Enter" && addEntry()}
+        />
+        <select class="manual-select" bind:value={entryCat} aria-label="Category">
+          {#each entryCategories as cat}
+            <option value={cat.value}>{cat.label}</option>
+          {/each}
+        </select>
+        <input
+          class="manual-input manual-time"
+          type="text"
+          inputmode="numeric"
+          placeholder="09:00"
+          maxlength="5"
+          bind:value={entryStart}
+          on:blur={() => (entryStart = normalizeTime(entryStart))}
+          on:keydown={(e) => e.key === "Enter" && addEntry()}
+          aria-label="Start time (24-hour)"
+        />
+        <span class="manual-dash">–</span>
+        <input
+          class="manual-input manual-time"
+          type="text"
+          inputmode="numeric"
+          placeholder="17:30"
+          maxlength="5"
+          bind:value={entryEnd}
+          on:blur={() => (entryEnd = normalizeTime(entryEnd))}
+          on:keydown={(e) => e.key === "Enter" && addEntry()}
+          aria-label="End time (24-hour)"
+        />
+        <button class="manual-btn" on:click={addEntry}>Add</button>
+      </div>
+      {#if formError}
+        <p class="manual-error">{formError}</p>
+      {/if}
+    </div>
+  {:else if openForm === "timer"}
+    <div class="manual-form" transition:slide={{ duration: 160 }}>
+      <div class="manual-form-row">
+        <!-- svelte-ignore a11y-autofocus — the user just clicked "Timer" -->
+        <input
+          class="manual-input manual-label-input"
+          type="text"
+          placeholder="What are you working on? (optional)"
+          bind:value={timerLabel}
+          maxlength="60"
+          autofocus
+          on:keydown={(e) => e.key === "Enter" && startTimer()}
+        />
+        <select class="manual-select" bind:value={timerCat} aria-label="Category">
+          {#each entryCategories as cat}
+            <option value={cat.value}>{cat.label}</option>
+          {/each}
+        </select>
+        <button class="manual-btn" on:click={startTimer}>Start</button>
+      </div>
+      {#if formError}
+        <p class="manual-error">{formError}</p>
+      {/if}
+    </div>
+  {/if}
 
   {#if loading}
     <div class="skeleton-list">
@@ -370,12 +641,31 @@
           ></div>
           <div class="session-content">
             <div class="session-header">
-              <span class="session-app">{session.app_name}</span>
-              <span
-                class="session-category"
-                style="color: {categoryColor(session.category)}"
-              >
-                {categoryName(session.category)}
+              <span class="session-app">
+                {session.app_name}
+                {#if session.source === "manual"}
+                  <span class="manual-chip">Manual</span>
+                {/if}
+              </span>
+              <span class="session-header-right">
+                <span
+                  class="session-category"
+                  style="color: {categoryColor(session.category)}"
+                >
+                  {categoryName(session.category)}
+                </span>
+                {#if session.source === "manual" && session.end_time}
+                  <button
+                    class="session-delete"
+                    title="Delete this entry"
+                    aria-label="Delete manual entry"
+                    on:click={() => deleteEntry(session)}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                {/if}
               </span>
             </div>
             <div class="session-meta">
@@ -443,6 +733,215 @@
   .date-picker:focus {
     outline: none;
     border-color: var(--accent);
+  }
+
+  /* ─── Header actions (timer / add entry) ───────────────────────── */
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-1);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition);
+  }
+
+  .action-btn:hover {
+    border-color: var(--border-strong);
+  }
+
+  .action-btn.action-open {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .action-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .stop-btn {
+    border-color: transparent;
+    background: var(--danger);
+    color: #fff;
+  }
+
+  .stop-btn:hover {
+    border-color: transparent;
+    filter: brightness(1.08);
+  }
+
+  .stop-square {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+
+  /* ─── Manual entry / timer form ────────────────────────────────── */
+  .manual-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .manual-form-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .manual-input {
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-1);
+    background: var(--surface);
+    transition: border-color var(--transition);
+    color-scheme: light dark;
+  }
+
+  .manual-input:hover { border-color: var(--border-strong); }
+  .manual-input:focus { outline: none; border-color: var(--accent); }
+
+  .manual-label-input {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .manual-time {
+    width: 62px;
+    padding: 0;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .manual-time::placeholder {
+    color: var(--text-3);
+    opacity: 0.6;
+  }
+
+  .manual-dash {
+    color: var(--text-3);
+    font-size: 13px;
+  }
+
+  .manual-select {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 34px;
+    padding: 0 30px 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-1);
+    background-color: var(--surface);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    background-size: 13px;
+    cursor: pointer;
+    transition: border-color var(--transition);
+  }
+
+  .manual-select:hover { border-color: var(--border-strong); }
+  .manual-select:focus { outline: none; border-color: var(--accent); }
+
+  .manual-btn {
+    height: 34px;
+    padding: 0 18px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+
+  .manual-btn:hover {
+    background: var(--accent-hover);
+  }
+
+  .manual-error {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--danger);
+  }
+
+  .manual-chip {
+    display: inline-block;
+    margin-left: 7px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-3);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    vertical-align: 1px;
+  }
+
+  .session-header-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .session-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-3);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--transition), background var(--transition), color var(--transition);
+  }
+
+  .session-block:hover .session-delete {
+    opacity: 1;
+  }
+
+  .session-delete:hover {
+    background: var(--surface-2);
+    color: var(--danger);
+  }
+
+  .session-delete svg {
+    width: 12px;
+    height: 12px;
   }
 
   /* ─── Hour chart ───────────────────────────────────────────────── */

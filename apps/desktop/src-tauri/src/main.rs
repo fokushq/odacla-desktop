@@ -25,10 +25,45 @@ use odacla_collector::Collector;
 use odacla_domain::TrackingMode;
 use odacla_storage::Database;
 
+/// Compact clock for the tray: "MM:SS" under an hour, "H:MM:SS" after.
+fn format_timer(total_secs: i64) -> String {
+    let secs = total_secs.max(0);
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    let s = secs % 60;
+    if h > 0 {
+        format!("{h}:{m:02}:{s:02}")
+    } else {
+        format!("{m:02}:{s:02}")
+    }
+}
+
 /// Graceful shutdown: signal the collector so it finalizes the current
 /// session, then exit shortly after. Shared by the tray Quit item and
 /// window close when the tray icon is disabled.
 fn quit(app: &AppHandle) {
+    // A running manual timer is finalized at quit time — the user started
+    // it deliberately, so its time shouldn't vanish with the app. (After a
+    // hard crash there is no quit moment; close_stale_sessions discards
+    // the orphaned timer at next startup instead.)
+    if let Some(state) = app.try_state::<state::AppState>() {
+        if let Ok(db) = state.db.lock() {
+            if let Ok(Some(mut timer)) = db.get_active_manual_session() {
+                timer.end_time = Some(chrono::Utc::now());
+                if db.update_session(&timer).is_ok() {
+                    let date = timer.start_time.with_timezone(&chrono::Local).date_naive();
+                    let _ = db.adjust_daily_rollup(
+                        date,
+                        &timer.category,
+                        timer.duration().num_seconds(),
+                        1,
+                    );
+                    info!("Finalized running manual timer on quit");
+                }
+            }
+        }
+    }
+
     if let Some(handle) = app.try_state::<state::ShutdownHandle>() {
         let _ = handle.0.send(true);
     }
@@ -197,19 +232,23 @@ fn main() {
             let (shutdown_tx, shutdown_rx) = watch::channel(false);
             app.manage(state::ShutdownHandle(shutdown_tx));
 
+            // No manual timer can survive a restart: a graceful quit
+            // finalizes it and close_stale_sessions discards crash orphans.
+            app.manage(state::TimerState(Mutex::new(None)));
+
             // ─── System tray ────────────────────────────────────────
             let (show_tray, focus_active) = settings
                 .lock()
                 .map(|s| (s.show_tray_icon, s.tracking_mode == TrackingMode::IncludeList))
                 .unwrap_or((true, false));
 
-            let tray_menu = tray::build_menu(&app.handle(), focus_active)?;
+            let tray_menu = tray::build_menu(&app.handle(), focus_active, false)?;
 
-            // Dedicated monochrome glyph (ring + dot) — macOS renders
-            // template icons from the alpha channel, so the colored app
-            // icon would show up as a solid blob in the menu bar.
-            let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))
-                .expect("embedded tray icon is valid PNG");
+            // Dedicated monochrome glyph (ring + dot; bullseye when focus
+            // mode was left on) — macOS renders template icons from the
+            // alpha channel, so the colored app icon would show up as a
+            // solid blob in the menu bar.
+            let tray_icon = tray::icon(focus_active);
 
             let tray = TrayIconBuilder::with_id("main")
                 .icon(tray_icon)
@@ -238,19 +277,61 @@ fn main() {
                                 }
                             }
                         }
-                        tray::refresh(app, focus_active);
+                        tray::refresh_from_state(app);
                         let _ = app.emit(
                             "tracking-mode-changed",
                             if focus_active { "include_list" } else { "exclude_list" },
                         );
                         info!(focus = focus_active, "Focus mode toggled from tray");
                     }
+                    "stop-timer" => match commands::stop_timer_inner(app) {
+                        Ok(Some(_)) => info!("Manual timer stopped from tray"),
+                        Ok(None) => info!("Manual timer stopped from tray (short run discarded)"),
+                        Err(e) => warn!("Failed to stop timer from tray: {}", e),
+                    },
                     "show" => show_main_window(app),
                     "quit" => quit(app),
                     _ => {}
                 })
                 .build(app)?;
             let _ = tray.set_visible(show_tray);
+
+            // ─── Tray timer clock ───────────────────────────────────
+            // While a manual timer runs, tick the elapsed time next to
+            // the tray icon (macOS menu bar; elsewhere the tooltip).
+            // One cheap in-memory read per second, nothing when idle.
+            let ticker_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut showing = false;
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    let started = ticker_app
+                        .try_state::<state::TimerState>()
+                        .and_then(|t| t.0.lock().ok().map(|v| *v))
+                        .flatten();
+                    let Some(tray) = ticker_app.tray_by_id("main") else {
+                        continue;
+                    };
+                    match started {
+                        Some(t0) => {
+                            let clock = format_timer((chrono::Utc::now() - t0).num_seconds());
+                            let _ = tray.set_title(Some(clock.as_str()));
+                            let _ = tray
+                                .set_tooltip(Some(format!("Odacla — Timer · {clock}").as_str()));
+                            showing = true;
+                        }
+                        None if showing => {
+                            // Some(""), not None: tray-icon's macOS backend
+                            // ignores None and leaves the old text in the
+                            // menu bar — empty string actually clears it.
+                            let _ = tray.set_title(Some(""));
+                            let _ = tray.set_tooltip(Some("Odacla — Time Tracker"));
+                            showing = false;
+                        }
+                        None => {}
+                    }
+                }
+            });
 
             // ─── Autostart — sync OS state with the stored setting ──
             let start_on_boot = settings.lock().map(|s| s.start_on_boot).unwrap_or(false);
@@ -290,6 +371,11 @@ fn main() {
             commands::update_rule,
             commands::delete_rule,
             commands::export_data,
+            commands::create_manual_entry,
+            commands::start_manual_timer,
+            commands::stop_manual_timer,
+            commands::get_active_manual_timer,
+            commands::delete_manual_session,
             commands::get_custom_categories,
             commands::create_custom_category,
             commands::update_custom_category,

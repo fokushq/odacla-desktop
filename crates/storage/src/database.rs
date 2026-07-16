@@ -88,6 +88,21 @@ impl Database {
             info!("Applied classification rules migration v2");
         }
 
+        // Migration: sessions.source column (manual time entries). CREATE
+        // TABLE IF NOT EXISTS won't touch existing databases, so add the
+        // column when it's missing.
+        let has_source: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'source'",
+            [],
+            |row| row.get(0),
+        )?;
+        if has_source == 0 {
+            self.conn.execute_batch(
+                "ALTER TABLE sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'auto';",
+            )?;
+            info!("Added sessions.source column (manual entry support)");
+        }
+
         // Migration: drop tables from earlier schema versions that were
         // never written to by any code path (safe — always empty).
         self.conn.execute_batch(

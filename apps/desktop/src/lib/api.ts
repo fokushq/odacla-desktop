@@ -81,6 +81,45 @@ export async function getRunningApps(): Promise<string[]> {
   return invoke<string[]>("get_running_apps");
 }
 
+// ─── Manual Entries & Timer ─────────────────────────────────────────────────
+// Time the computer can't see: meetings, reading, calls. Manual sessions
+// count toward rollups and goals; the category is passed JSON-encoded
+// (e.g. '"productive"' or '{"custom":"Meetings"}') like rule categories.
+
+/** Add a past block of time by hand. start/end are ISO 8601 instants. */
+export async function createManualEntry(
+  label: string | null,
+  category: string,
+  start: string,
+  end: string
+): Promise<Session> {
+  return invoke<Session>("create_manual_entry", { label, category, start, end });
+}
+
+/** Start a manual timer. Fails if one is already running. */
+export async function startManualTimer(
+  label: string | null,
+  category: string
+): Promise<Session> {
+  return invoke<Session>("start_manual_timer", { label, category });
+}
+
+/** Stop the running manual timer. Returns null if there was none or the
+ *  run was too short to keep (a misclick). */
+export async function stopManualTimer(): Promise<Session | null> {
+  return invoke<Session | null>("stop_manual_timer");
+}
+
+/** Fetch the running manual timer (to restore the UI after a relaunch). */
+export async function getActiveManualTimer(): Promise<Session | null> {
+  return invoke<Session | null>("get_active_manual_timer");
+}
+
+/** Delete a manual entry. Auto-tracked sessions are refused. */
+export async function deleteManualSession(id: string): Promise<void> {
+  return invoke<void>("delete_manual_session", { id });
+}
+
 // ─── Rollup Queries ─────────────────────────────────────────────────────────
 
 /** Fetch today's daily rollups (using local date) */

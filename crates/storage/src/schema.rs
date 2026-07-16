@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     category            TEXT NOT NULL,       -- JSON-encoded Category enum
     url                 TEXT,
     activity_count      INTEGER NOT NULL DEFAULT 1,
-    idle_seconds_total  INTEGER NOT NULL DEFAULT 0
+    idle_seconds_total  INTEGER NOT NULL DEFAULT 0,
+    source              TEXT NOT NULL DEFAULT 'auto'  -- 'auto' | 'manual'
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_time_category

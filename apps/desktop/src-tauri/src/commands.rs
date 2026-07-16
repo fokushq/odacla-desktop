@@ -1,10 +1,10 @@
 //! Tauri commands — Bridge between Rust backend and Svelte UI.
 
 use chrono::{DateTime, NaiveDate, Utc};
-use tauri::State;
+use tauri::{Emitter, Manager, State};
 use uuid::Uuid;
 
-use odacla_domain::{Category, CustomCategory, Rule, Session, Settings, TrackingMode, rule::MatchTarget};
+use odacla_domain::{Category, CustomCategory, Rule, Session, SessionSource, Settings, TrackingMode, rule::MatchTarget};
 use odacla_platform::ActivityDetector;
 use odacla_storage::queries::rollups::DailyRollup;
 
@@ -180,6 +180,183 @@ pub fn delete_rule(rule_id: String, state: State<AppState>) -> Result<(), String
     Ok(())
 }
 
+// ─── Manual entries & timer ─────────────────────────────────────────────────
+// Time the computer can't see: meetings, reading, calls, whiteboard work.
+// Manual sessions count toward rollups and daily goals like any other
+// session, but are never reclassified, merged, or auto-discarded.
+
+/// Roll a finished manual session into the daily aggregates.
+/// `sign` is +1 on create/stop, -1 on delete.
+fn roll_manual_session(db: &odacla_storage::Database, session: &Session, sign: i64) {
+    let date = session.start_time.with_timezone(&chrono::Local).date_naive();
+    let secs = session.duration().num_seconds();
+    if let Err(e) = db.adjust_daily_rollup(date, &session.category, sign * secs, sign) {
+        tracing::warn!("Failed to adjust rollup for manual session: {}", e);
+    }
+}
+
+/// Shared validation + label fallback for manual sessions.
+fn manual_label(label: Option<String>, category: &Category) -> String {
+    let label = label.unwrap_or_default().trim().to_string();
+    if label.is_empty() {
+        category.display_name().to_string()
+    } else {
+        label
+    }
+}
+
+/// Add a past block of time by hand. `start`/`end` are RFC 3339 instants;
+/// the frontend builds them from the date being viewed plus time inputs.
+#[tauri::command]
+pub fn create_manual_entry(
+    label: Option<String>,
+    category: String,
+    start: String,
+    end: String,
+    state: State<AppState>,
+) -> Result<Session, String> {
+    let category: Category =
+        serde_json::from_str(&category).map_err(|e| format!("Invalid category: {}", e))?;
+    let start_dt = DateTime::parse_from_rfc3339(&start)
+        .map_err(|e| format!("Invalid start time: {}", e))?
+        .with_timezone(&Utc);
+    let end_dt = DateTime::parse_from_rfc3339(&end)
+        .map_err(|e| format!("Invalid end time: {}", e))?
+        .with_timezone(&Utc);
+
+    if end_dt <= start_dt {
+        return Err("End time must be after start time".to_string());
+    }
+    if (end_dt - start_dt).num_seconds() < 60 {
+        return Err("Entries need to be at least a minute long".to_string());
+    }
+    if start_dt > Utc::now() {
+        return Err("Entries can't start in the future".to_string());
+    }
+
+    let session = Session::manual(manual_label(label, &category), category, start_dt, Some(end_dt));
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.insert_session(&session).map_err(|e| e.to_string())?;
+    roll_manual_session(&db, &session, 1);
+
+    Ok(session)
+}
+
+/// Keep the in-memory timer mirror, tray menu and (via event) any open
+/// window in sync with the timer's start instant.
+fn set_timer_state(app: &tauri::AppHandle, start: Option<DateTime<Utc>>) {
+    if let Some(timer) = app.try_state::<crate::state::TimerState>() {
+        if let Ok(mut slot) = timer.0.lock() {
+            *slot = start;
+        }
+    }
+    crate::tray::refresh_from_state(app);
+}
+
+/// Stop the running manual timer — shared by the IPC command and the
+/// tray's Stop Timer item. Very short runs (under the minimum session
+/// duration — almost certainly a misclick) are discarded, which the
+/// None return signals to the caller.
+pub fn stop_timer_inner(app: &tauri::AppHandle) -> Result<Option<Session>, String> {
+    let state = app.state::<AppState>();
+    let min_secs = state
+        .settings
+        .lock()
+        .map(|s| s.min_session_duration_secs as i64)
+        .unwrap_or(10);
+
+    let kept = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        match db.get_active_manual_session().map_err(|e| e.to_string())? {
+            None => None,
+            Some(mut session) => {
+                session.end_time = Some(Utc::now());
+                if session.duration().num_seconds() < min_secs {
+                    db.delete_session(&session.id).map_err(|e| e.to_string())?;
+                    None
+                } else {
+                    db.update_session(&session).map_err(|e| e.to_string())?;
+                    roll_manual_session(&db, &session, 1);
+                    Some(session)
+                }
+            }
+        }
+    };
+
+    set_timer_state(app, None);
+    let _ = app.emit("manual-timer-changed", None::<Session>);
+    Ok(kept)
+}
+
+/// Start a manual timer — an open manual session. Only one can run at a
+/// time; the UI and the tray show it live until stopped.
+#[tauri::command]
+pub fn start_manual_timer(
+    app: tauri::AppHandle,
+    label: Option<String>,
+    category: String,
+    state: State<AppState>,
+) -> Result<Session, String> {
+    let category: Category =
+        serde_json::from_str(&category).map_err(|e| format!("Invalid category: {}", e))?;
+
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        if db
+            .get_active_manual_session()
+            .map_err(|e| e.to_string())?
+            .is_some()
+        {
+            return Err("A timer is already running — stop it first".to_string());
+        }
+
+        let session = Session::manual(manual_label(label, &category), category, Utc::now(), None);
+        db.insert_session(&session).map_err(|e| e.to_string())?;
+
+        drop(db);
+        set_timer_state(&app, Some(session.start_time));
+        let _ = app.emit("manual-timer-changed", Some(&session));
+        Ok(session)
+    }
+}
+
+/// Stop the running manual timer.
+#[tauri::command]
+pub fn stop_manual_timer(app: tauri::AppHandle) -> Result<Option<Session>, String> {
+    stop_timer_inner(&app)
+}
+
+/// Get the running manual timer so the UI can restore it after a window
+/// recreation or app restart.
+#[tauri::command]
+pub fn get_active_manual_timer(state: State<AppState>) -> Result<Option<Session>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_active_manual_session().map_err(|e| e.to_string())
+}
+
+/// Delete a manual session (mistyped entry). Auto sessions are refused —
+/// recorded history isn't editable, that's the product's honesty promise.
+#[tauri::command]
+pub fn delete_manual_session(id: String, state: State<AppState>) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&id).map_err(|e| format!("Invalid session id: {}", e))?;
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let Some(session) = db.get_session_by_id(&uuid).map_err(|e| e.to_string())? else {
+        return Err("Session not found".to_string());
+    };
+    if session.source != SessionSource::Manual {
+        return Err("Only manual entries can be deleted".to_string());
+    }
+
+    db.delete_session(&uuid).map_err(|e| e.to_string())?;
+    // A still-running timer was never rolled up — nothing to revert then.
+    if session.end_time.is_some() {
+        roll_manual_session(&db, &session, -1);
+    }
+    Ok(())
+}
+
 // ─── Data export ────────────────────────────────────────────────────────────
 
 fn csv_escape(value: &str) -> String {
@@ -188,11 +365,11 @@ fn csv_escape(value: &str) -> String {
 
 fn sessions_to_csv(sessions: &[Session]) -> String {
     let mut out = String::from(
-        "start_time,end_time,app_name,window_title,category,url,duration_seconds,idle_seconds_total\n",
+        "start_time,end_time,app_name,window_title,category,url,duration_seconds,idle_seconds_total,source\n",
     );
     for s in sessions {
         out.push_str(&format!(
-            "{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{}\n",
             s.start_time.to_rfc3339(),
             s.end_time.map(|e| e.to_rfc3339()).unwrap_or_default(),
             csv_escape(&s.app_name),
@@ -201,6 +378,7 @@ fn sessions_to_csv(sessions: &[Session]) -> String {
             csv_escape(s.url.as_deref().unwrap_or("")),
             s.duration().num_seconds(),
             s.idle_seconds_total,
+            s.source.as_str(),
         ));
     }
     out
@@ -370,14 +548,15 @@ pub fn save_settings(
 
     // Keep the tray's Focus Mode checkmark in sync and tell the UI
     let focus_active = settings.tracking_mode == TrackingMode::IncludeList;
-    crate::tray::refresh(&app, focus_active);
-    {
-        use tauri::Emitter;
-        let _ = app.emit(
-            "tracking-mode-changed",
-            if focus_active { "include_list" } else { "exclude_list" },
-        );
-    }
+    let timer_running = app
+        .try_state::<crate::state::TimerState>()
+        .and_then(|t| t.0.lock().ok().map(|v| v.is_some()))
+        .unwrap_or(false);
+    crate::tray::refresh(&app, focus_active, timer_running);
+    let _ = app.emit(
+        "tracking-mode-changed",
+        if focus_active { "include_list" } else { "exclude_list" },
+    );
 
     // Hot-reload: update the shared settings so the collector sees the change
     let mut shared = state.settings.lock().map_err(|e| e.to_string())?;
