@@ -14,7 +14,7 @@ mod tray;
 use std::sync::{Arc, Mutex};
 
 use tauri::tray::TrayIconBuilder;
-use tauri::{Emitter, Manager, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tokio::sync::watch;
 use tracing::{info, warn};
@@ -24,6 +24,56 @@ use odacla_classifier::Classifier;
 use odacla_collector::Collector;
 use odacla_domain::TrackingMode;
 use odacla_storage::Database;
+
+/// Graceful shutdown: signal the collector so it finalizes the current
+/// session, then exit shortly after. Shared by the tray Quit item and
+/// window close when the tray icon is disabled.
+fn quit(app: &AppHandle) {
+    if let Some(handle) = app.try_state::<state::ShutdownHandle>() {
+        let _ = handle.0.send(true);
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        app.exit(0);
+    });
+}
+
+/// Bring the main window to the front, recreating it if it was destroyed
+/// by a close-to-tray. Recreating (instead of hiding) is what keeps the
+/// backgrounded app light: destroying the window tears down the OS
+/// webview processes, which dwarf the Rust side in memory.
+fn show_main_window(app: &AppHandle) {
+    // Restore the Dock icon / Alt-Tab presence before the window appears.
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return;
+    }
+
+    let Some(config) = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+    else {
+        warn!("No 'main' window config found — cannot recreate window");
+        return;
+    };
+
+    match WebviewWindowBuilder::from_config(app, &config).and_then(|b| b.build()) {
+        Ok(window) => {
+            let _ = window.set_focus();
+        }
+        Err(e) => warn!("Failed to recreate main window: {}", e),
+    }
+}
 
 fn main() {
     tracing_subscriber::fmt()
@@ -42,22 +92,27 @@ fn main() {
             None,
         ))
         .on_window_event(|window, event| {
-            // Closing the window minimizes to tray so tracking keeps running.
-            // If the tray icon is disabled in settings, closing quits the app.
-            if let WindowEvent::CloseRequested { api, .. } = event {
+            // Closing the window drops to the tray so tracking keeps running.
+            // The window is destroyed (not hidden): that tears down the OS
+            // webview processes, so the backgrounded app is only the small
+            // Rust collector. The tray "Show" item recreates the window.
+            // If the tray icon is disabled in settings, closing quits.
+            if let WindowEvent::CloseRequested { .. } = event {
                 let app = window.app_handle();
-                let hide_to_tray = app
+                let close_to_tray = app
                     .state::<state::AppState>()
                     .settings
                     .lock()
                     .map(|s| s.show_tray_icon)
                     .unwrap_or(true);
 
-                if hide_to_tray {
-                    api.prevent_close();
-                    let _ = window.hide();
-                } else if let Some(handle) = app.try_state::<state::ShutdownHandle>() {
-                    let _ = handle.0.send(true);
+                if close_to_tray {
+                    // Let the close proceed. On macOS, also vanish from the
+                    // Dock and Alt-Tab — the tray icon is the app now.
+                    #[cfg(target_os = "macos")]
+                    let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                } else {
+                    quit(app);
                 }
             }
         })
@@ -190,25 +245,8 @@ fn main() {
                         );
                         info!(focus = focus_active, "Focus mode toggled from tray");
                     }
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
-                        }
-                    }
-                    "quit" => {
-                        // Signal the collector so it can finalize the current
-                        // session, then exit shortly after.
-                        if let Some(handle) = app.try_state::<state::ShutdownHandle>() {
-                            let _ = handle.0.send(true);
-                        }
-                        let app = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
-                            app.exit(0);
-                        });
-                    }
+                    "show" => show_main_window(app),
+                    "quit" => quit(app),
                     _ => {}
                 })
                 .build(app)?;
@@ -262,6 +300,37 @@ fn main() {
             commands::get_detected_apps,
             commands::get_running_apps,
         ])
-        .run(tauri::generate_context!())
-        .expect("Failed to run Odacla");
+        .build(tauri::generate_context!())
+        .expect("Failed to build Odacla")
+        .run(|app, event| {
+            // A user-initiated exit (last window closed, Cmd+Q, Dock quit)
+            // arrives with code: None. While the tray icon is on, tracking
+            // lives there — so treat those as "drop to tray", not exit.
+            // Real quits (tray menu, no-tray close) go through quit(),
+            // whose AppHandle::exit carries Some(code) and passes through.
+            if let RunEvent::ExitRequested { code: None, api, .. } = event {
+                api.prevent_exit();
+
+                let tray_enabled = app
+                    .state::<state::AppState>()
+                    .settings
+                    .lock()
+                    .map(|s| s.show_tray_icon)
+                    .unwrap_or(true);
+
+                if tray_enabled {
+                    // Cmd+Q with the window still open behaves like
+                    // closing it: destroy so the webview memory is freed.
+                    for (_, window) in app.webview_windows() {
+                        let _ = window.destroy();
+                    }
+                    #[cfg(target_os = "macos")]
+                    let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                } else {
+                    // No tray to live in — do a clean shutdown instead
+                    // (finalizes the open session before exiting).
+                    quit(app);
+                }
+            }
+        });
 }

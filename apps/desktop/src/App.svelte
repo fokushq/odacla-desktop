@@ -31,6 +31,11 @@
   let focusActive = false;
   let unlistenMode: UnlistenFn | undefined;
 
+  // Pages render only after the startup data (custom category colors,
+  // theme) is in — otherwise the first paint races the async load and
+  // charts briefly show default palette colors.
+  let ready = false;
+
   // Startup: load custom category colors (used by charts everywhere),
   // apply the saved theme preference, and subscribe to mode changes.
   onMount(async () => {
@@ -44,6 +49,8 @@
       });
     } catch (e) {
       console.error("Failed to load startup data:", e);
+    } finally {
+      ready = true;
     }
   });
 
@@ -152,6 +159,7 @@
 
   <!-- ─── Main Content ───────────────────────────────────────────── -->
   <main class="main-content">
+    {#if ready}
     {#key $currentPage}
       <div class="page" in:fade={{ duration: 140 }}>
         {#if $currentPage === "dashboard"}
@@ -167,6 +175,7 @@
         {/if}
       </div>
     {/key}
+    {/if}
   </main>
 </div>
 
