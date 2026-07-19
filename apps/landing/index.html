@@ -430,11 +430,16 @@
   "use strict";
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // ── Block pinch zoom on iOS Safari (it ignores viewport/max-scale;
-  //    these WebKit-only gesture events are the reliable switch) ──────
+  // ── Block pinch zoom on iOS Safari. It ignores viewport/max-scale,
+  //    and registers touch listeners as passive by default — which
+  //    silently drops preventDefault. passive:false is what makes
+  //    these actually fire; the touchmove scale guard is the backstop.
   ["gesturestart", "gesturechange", "gestureend"].forEach(function (t) {
-    document.addEventListener(t, function (e) { e.preventDefault(); });
+    document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false });
   });
+  document.addEventListener("touchmove", function (e) {
+    if (e.touches.length > 1 || (e.scale !== undefined && e.scale !== 1)) e.preventDefault();
+  }, { passive: false });
 
   // ── Hero CTA: detect the visitor's OS ──────────────────────────────
   var ua = navigator.userAgent, plat = navigator.platform || "";
