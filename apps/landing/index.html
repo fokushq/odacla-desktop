@@ -430,6 +430,12 @@
   "use strict";
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // ── Block pinch zoom on iOS Safari (it ignores viewport/max-scale;
+  //    these WebKit-only gesture events are the reliable switch) ──────
+  ["gesturestart", "gesturechange", "gestureend"].forEach(function (t) {
+    document.addEventListener(t, function (e) { e.preventDefault(); });
+  });
+
   // ── Hero CTA: detect the visitor's OS ──────────────────────────────
   var ua = navigator.userAgent, plat = navigator.platform || "";
   var os = /Mac/i.test(plat) || /Mac OS X/i.test(ua) ? "mac"
